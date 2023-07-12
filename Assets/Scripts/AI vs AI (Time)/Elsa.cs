@@ -3,8 +3,8 @@ using System.Diagnostics;
 using System.IO;
 using UnityEngine;
 
-public class Elsa : MonoBehaviour {
-
+public class Elsa : MonoBehaviour
+{
     #region Variables
 
     [SerializeField] private Timer tmr;
@@ -20,7 +20,9 @@ public class Elsa : MonoBehaviour {
 
     #region UTILITY
 
-    public void CreateEntry(Vector2 alloted_time, int last_move) {
+    public void
+    CreateEntry(Vector2 alloted_time, int last_move)
+    {
         string path = Application.streamingAssetsPath + "/elsa_in.txt";
 
         string command;
@@ -34,7 +36,9 @@ public class Elsa : MonoBehaviour {
         return;
     }
 
-    private bool Get_Entry() {
+    private bool
+    Get_Entry()
+    {
         string path = Application.streamingAssetsPath + "/elsa_out.txt";
         FileStream logFile = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         StreamReader logFileReader = new StreamReader(logFile);
