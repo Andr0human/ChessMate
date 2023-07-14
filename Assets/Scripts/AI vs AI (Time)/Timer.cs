@@ -1,8 +1,8 @@
 using UnityEngine;
 using TMPro;
 
-public class Timer : MonoBehaviour {
-
+public class Timer : MonoBehaviour
+{
     [SerializeField] private float alloted_time_per_side = 60f;
     public float clock_white = 100f, clock_black = 100f;
     public float increment_time = 2f;
@@ -14,26 +14,29 @@ public class Timer : MonoBehaviour {
 
     private int saved_state;
 
-    public void Update() {
-        if (!white_tick && !black_tick) {
+    public void
+    Update()
+    {
+        if (!white_tick && !black_tick)
             return;
-        }
         if (white_tick) {
             clock_white -= 1f * Time.deltaTime;
         }
         if (black_tick) {
             clock_black -= 1f * Time.deltaTime;
         }
-        Text_color_change(ref white_time, clock_white);
-        Text_color_change(ref black_time, clock_black);
+        TextColorChange(ref white_time, clock_white);
+        TextColorChange(ref black_time, clock_black);
         if (clock_white <= 0f || clock_black <= 0f) {
             white_tick = black_tick = false;
         }
-        white_time.text = Remaining_time(clock_white);
-        black_time.text = Remaining_time(clock_black);
+        white_time.text = RemainingTime(clock_white);
+        black_time.text = RemainingTime(clock_black);
     }
 
-    public void Text_color_change(ref TextMeshProUGUI __t, float value) {
+    public void
+    TextColorChange(ref TextMeshProUGUI __t, float value)
+    {
         if (value < 15f) {
             __t.color = low_time_color;
             return;
@@ -45,17 +48,20 @@ public class Timer : MonoBehaviour {
         __t.color = high_time_color;
     }
 
-    public void Clock_reset(int color) {
+    public void
+    ClockReset(int color)
+    {
         clock_white = clock_black = alloted_time_per_side;
         black_tick = false;
         white_tick = false;
 
         if (color == 1) white_tick = true;
         if (color == -1) black_tick = true;
-
     }
 
-    public void Switch_player() {
+    public void
+    SwitchPlayer()
+    {
         if (white_tick) {
             clock_white += increment_time;
             white_tick = false;
@@ -67,7 +73,9 @@ public class Timer : MonoBehaviour {
         white_tick = true;
     }
 
-    public void Clock_freeze() {
+    public void
+    ClockFreeze()
+    {
         if (black_tick) {
             saved_state = -1;
         }
@@ -77,7 +85,9 @@ public class Timer : MonoBehaviour {
         black_tick = white_tick = false;
     }
 
-    public void Clock_unfreeze() {
+    public void
+    ClockUnfreeze()
+    {
         if (saved_state == 1) {
             white_tick = true;
             return;
@@ -87,7 +97,9 @@ public class Timer : MonoBehaviour {
         }
     }
 
-    public string Remaining_time(double time_left) {
+    public string
+    RemainingTime(double time_left)
+    {
         if (time_left < 15.0) {
             return time_left.ToString("0.##");
         }
@@ -100,20 +112,21 @@ public class Timer : MonoBehaviour {
         return res;
     }
 
-    public void Set_time(int _x, int _y) {
+    public void
+    SetTime(int _x, int _y)
+    {
         alloted_time_per_side = _x;
         increment_time = _y;
     }
 
-    public float Get_alloted_time() {
-        return alloted_time_per_side;
-    }
+    public float
+    GetAllotedTime()
+    { return alloted_time_per_side; }
 
-    public void Init() {
+    public void
+    Init()
+    {
         clock_white = alloted_time_per_side;
         clock_black = alloted_time_per_side;
     }
-
-
-
 }

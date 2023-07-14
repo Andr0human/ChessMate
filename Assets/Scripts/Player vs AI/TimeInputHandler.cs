@@ -1,26 +1,33 @@
 using UnityEngine;
 
-public class TimeInputHandler : MonoBehaviour {
+public class TimeInputHandler : MonoBehaviour
+{
 
     [SerializeField] private Timer tmr;
-    [SerializeField] private Elsa eb;
     [SerializeField] private GameObject white_clock, black_clock;
-    private string startPosition = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    
+    private string StartFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    private bool fixed_search_time;
+    private ChessEngine bot;
 
 
-    public void Dropdown(int val) {
-        if (val == 0) {
-            eb.use_fixed_time = true;
-            tmr.Set_time(0, 0);
+    public void
+    Dropdown(int val)
+    {
+        if (val == 0)
+        {
+            fixed_search_time = true;
+            tmr.SetTime(0, 0);
         }
-        else {
-            eb.use_fixed_time = false;
+        else
+        {
+            fixed_search_time = false;
             if (val == 1)
-                tmr.Set_time(180, 2);
+                tmr.SetTime(180, 2);
             if (val == 2)
-                tmr.Set_time(60, 1);
+                tmr.SetTime(60, 1);
             if (val == 3)
-                tmr.Set_time(300, 5);
+                tmr.SetTime(300, 5);
             if (val == 4) {
 
             }
@@ -28,8 +35,10 @@ public class TimeInputHandler : MonoBehaviour {
     }
 
 
-    public void StartGame() {
-        eb.InitializeBot(startPosition);
+    public void
+    StartGame()
+    {
+        bot = new ChessEngine("elsa", StartFen, fixed_search_time, true);
 
         GameObject.Find("Play Button").SetActive(false);
         GameObject.Find("Time Button").SetActive(false);
@@ -39,7 +48,7 @@ public class TimeInputHandler : MonoBehaviour {
         FindObjectOfType<UserInput_PvsAI>().enabled = true;
         FindObjectOfType<Engine_PvAI>().bot_color = -1;
 
-        if (eb.use_fixed_time) {
+        if (fixed_search_time) {
             tmr.enabled = false;
         }
         else {
@@ -47,13 +56,13 @@ public class TimeInputHandler : MonoBehaviour {
             white_clock.SetActive(true);
             black_clock.SetActive(true);
         }
-
     }
 
 
-    public void OnApplicationQuit() {
-        eb.StopBot();
+    public void
+    OnApplicationQuit()
+    {
+        bot.Stop();
         Application.Quit();
     }
-
 }

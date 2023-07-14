@@ -8,7 +8,6 @@ public class Engine_PvAI : MonoBehaviour {
     #region Variables
 
     [SerializeField] private Core cs;
-    [SerializeField] private Elsa mb;
     [SerializeField] private BoardHandler bh;
     [SerializeField] private Timer tmr;
 
@@ -16,8 +15,10 @@ public class Engine_PvAI : MonoBehaviour {
     public ChessBoard primary = new ChessBoard();
     public MoveList vMoves;
     public PGN game_pgn;
-    public string startPosition = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    public string StartPosition = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     public GameObject gameEnd;
+
+    private ChessEngine bot;
 
     public int bot_color;
     [SerializeField] private GameObject promotion_table;
@@ -31,31 +32,38 @@ public class Engine_PvAI : MonoBehaviour {
 
     #region Board
 
-    private void Start() {
+    private void
+    Start()
+    {
         game_pgn = new PGN();
         occured_positions = new List<ulong>();
-        cs.init();
 
-        primary.LoadFromFEN(startPosition);
+        cs.Init();
+
+        primary.LoadFromFEN(StartPosition);
         vMoves = new MoveList();
-        bh.Initialize_board(ref primary);
+        bh.InitializeBoard(ref primary);
         GetMoves();
-        mb.use_fixed_time = true;
-        //mb.InitializeBot(primary.FENGenerator());
-        //StartCoroutine(BotInput());
+
+        bot = new ChessEngine("elsa", StartPosition, true, true);
     }
 
-    void Add_to_table(ulong key, int __move) {
+    private void
+    AddToTable(ulong key, int __move)
+    {
         int pt = (__move >> 12) & 7, cpt = (__move >> 15) & 7;
         if (pt == 1 || cpt != 0)
             occured_positions.Clear();
         occured_positions.Add(key);
     }
 
-    public int Different_evals(float margin) {
+    public int
+    DifferentEvals(float margin)
+    {
         int res = 0;
-        List<Vector2> evaluations = game_pgn.get_eval();
-        foreach (Vector2 eval in evaluations) {
+        List<Vector2> evaluations = game_pgn.GetEval();
+        foreach (Vector2 eval in evaluations)
+        {
             float white = Mathf.Abs(eval.x), black = Mathf.Abs(eval.y);
             if (Mathf.Abs(eval.x - eval.y) > margin && white < 15f && black < 15f) res++;
         }
@@ -66,37 +74,45 @@ public class Engine_PvAI : MonoBehaviour {
 
     #region USER
 
-    public bool AvailableMoves(Vector2Int pos) {
-        return vMoves.Initial_Key(8 * pos.y + pos.x);
+    public bool
+    AvailableMoves(Vector2Int pos)
+    { return vMoves.InitialKey(8 * pos.y + pos.x); }
+
+    public void
+    ShowEndSquares(Vector2Int pos)
+    {
+        bh.BoardReset(true);
+        bh.BoardHighLight(vMoves.endIndex[8 * pos.y + pos.x], ref primary);
     }
 
-    public void Show_endSquares(Vector2Int pos) {
-        bh.Board_reset(true);
-        bh.Board_highLight(vMoves.endIndex[8 * pos.y + pos.x], ref primary);
-    }
-
-    public void Request_board_reset() {
-        bh.Board_reset(true);
+    public void
+    RequestBoardReset()
+    {
+        bh.BoardReset(true);
         return;
     }
 
-    public void print_game() {
-
+    public void
+    PrintGame()
+    {
         ChessBoard tmp_board = new ChessBoard();
-        tmp_board.LoadFromFEN(startPosition);
+        tmp_board.LoadFromFEN(StartPosition);
         string path1 = System.Environment.CurrentDirectory + "/game.txt";
-        var moveList = game_pgn.get_pgn();
-        foreach (Vector2Int current in moveList) {
+        var moveList = game_pgn.GetPgn();
+        foreach (Vector2Int current in moveList)
+        {
             int x = current.x;
             int y = current.y;
             string text2 = "";
-            if (x != 0) {
-                text2 += FindObjectOfType<MoveGenerator>().Print_move(x, ref tmp_board);
+            if (x != 0)
+            {
+                text2 += FindObjectOfType<MoveGenerator>().PrintMove(x, ref tmp_board);
                 text2 += " ";
                 tmp_board.MakeMove(x);
             }
-            if (y != 0) {
-                text2 += FindObjectOfType<MoveGenerator>().Print_move(y, ref tmp_board);
+            if (y != 0)
+            {
+                text2 += FindObjectOfType<MoveGenerator>().PrintMove(y, ref tmp_board);
                 tmp_board.MakeMove(y);
             }
             text2 += "\n";
@@ -104,16 +120,18 @@ public class Engine_PvAI : MonoBehaviour {
         }
     }
 
-    public void ValidateMove(bool request_by_human = false) {
-
-        if (primary.pColor == bot_color) {
+    public void
+    ValidateMove(bool request_by_human = false)
+    {
+        if (primary.pColor == bot_color)
+        {
             if (request_by_human) return;
 
-            Next_turn(bot_move);
+            NextTurn(bot_move);
             return;
         }
 
-        if (!vMoves.Start_end_pair(ip, fp)) return;
+        if (!vMoves.StartEndPair(ip, fp)) return;
 
         ulong Rank18 = 18374686479671623935;
         int pmove, pColor = primary.pColor;
@@ -121,27 +139,29 @@ public class Engine_PvAI : MonoBehaviour {
         if (pColor == 1) pmove |= 1 << 20;
 
 
-        if (primary.board[ip] == 1 && ((1UL << fp) & Rank18) != 0) {
+        if (primary.board[ip] == 1 && ((1UL << fp) & Rank18) != 0)
+        {
             // If move moved is pawn and final square is 1st or 8th Rank
-            StartCoroutine(Ask_for_promoted_piece(pmove));
+            StartCoroutine(AskforPromotedPiece(pmove));
             return;
         }
 
         // Condition for promotion
 
-        Next_turn(pmove);
-        return;
+        NextTurn(pmove);
     }
 
-    private IEnumerator Ask_for_promoted_piece(int _move) {
-
+    private IEnumerator
+    AskforPromotedPiece(int _move)
+    {
         Vector3 invalid_point = new Vector3(100f, 100f, 100f);
         FindObjectOfType<UserInput_PvsAI>().vector = invalid_point;
         FindObjectOfType<UserInput_PvsAI>().castle_in_place = true;
         promotion_table.SetActive(true);
         Vector3 MousePos;
 
-        while (true) {
+        while (true)
+        {
             MousePos = FindObjectOfType<UserInput_PvsAI>().vector;
             if (MousePos != invalid_point)
                 break;
@@ -152,7 +172,8 @@ public class Engine_PvAI : MonoBehaviour {
 
         int pp = -1;
 
-        if (primary.pColor == 1 && pos.x == -2) {
+        if (primary.pColor == 1 && pos.x == -2)
+        {
             if (pos.y == 7) pp = 3;
             else if (pos.y == 6) pp = 0;
             else if (pos.y == 5) pp = 1;
@@ -164,12 +185,13 @@ public class Engine_PvAI : MonoBehaviour {
 
         FindObjectOfType<UserInput_PvsAI>().castle_in_place = false;
         promotion_table.SetActive(false);
-        if (pp != -1) {
+        if (pp != -1)
+        {
             _move |= pp << 18;
-            Next_turn(_move);
+            NextTurn(_move);
         }
         else {
-            Request_board_reset();
+            RequestBoardReset();
         }
     }
 
@@ -177,7 +199,8 @@ public class Engine_PvAI : MonoBehaviour {
 
     #region Prediction & GameOver
 
-    private int Is_Game_Over() {
+    private int IsGameOver()
+    {
         /***
          *  States (-1 -> Game not Over)
          * 1 -> White won by checkmate
@@ -195,7 +218,7 @@ public class Engine_PvAI : MonoBehaviour {
             return 3;
         }
 
-        if (cs.Insufficient_material(primary)) return 4;    // Check for insufficient material
+        if (cs.InsufficientMaterial(primary)) return 4;    // Check for insufficient material
         if (occured_positions.Count >= 100) return 6;       // Check for 50-move rule
 
         if (occured_positions.Count > 0) {                  // Check for 3-fold repetition
@@ -212,22 +235,24 @@ public class Engine_PvAI : MonoBehaviour {
         return -1;
     }
 
-    public void Start_new_game(char to_white) {
-
+    public void
+    StartNewGame(char to_white)
+    {
         bot_color = to_white == 'c' ? 'w' : 'b';                // Set bot color
 
-        game_pgn.Clear_list();                                  // Clear last match pgn
+        game_pgn.ClearList();                                  // Clear last match pgn
         occured_positions.Clear();                              // Clear occured pos from last game
 
-        primary.LoadFromFEN(startPosition);                     // Load Starting pos. to chessBoard class
-        vMoves = cs.GenerateMoves(ref primary);                 // Generate all legal moves in current pos.
-        tmr.Clock_reset(primary.pColor);                        // Reset clock for next match
+        primary.LoadFromFEN(StartPosition);                     // Load Starting pos. to chessBoard class
+        vMoves = cs.mg.GenerateMoves(ref primary);                 // Generate all legal moves in current pos.
+        tmr.ClockReset(primary.pColor);                        // Reset clock for next match
         tmr.Init();
         StartCoroutine(BotInput());                             // Ready to request moves from bots
-
     }
 
-    public void GameEndings(int state) {
+    public void
+    GameEndings(int state)
+    {
         string res = "";
 
         if (state == 1) res = "White wins by checkmate!";
@@ -248,46 +273,57 @@ public class Engine_PvAI : MonoBehaviour {
 
     #region GamePlay
 
-    private void ReceiveMove() {
-        bot_move = mb.received_move;
-        bot_eval = (float)mb.received_move_eval;
+    private void
+    ReceiveMove()
+    {
+        bot_move = bot.engine_move;
+        bot_eval = (float)bot.engine_eval;
     }
 
-    private int GetMoves() {
-        vMoves = cs.GenerateMoves(ref primary);     // Generate & store all legal moves in current pos.
-        int state = Is_Game_Over();                 // Check if the game is Over
+    private int
+    GetMoves()
+    {
+        vMoves = cs.mg.GenerateMoves(ref primary);     // Generate & store all legal moves in current pos.
+        int state = IsGameOver();                 // Check if the game is Over
         return state;
     }
 
-    private IEnumerator BotInput() {
-        mb.received_move = 0;
-        if (primary.pColor == bot_color) {
-            mb.MakeMove(ref primary, game_pgn.get_last_move());
+    private IEnumerator
+    BotInput()
+    {
+        if (primary.pColor == bot_color)
+        {
+            float time_left = (bot_color == 1) ? tmr.clock_white : tmr.clock_black;
+            bot.Play(ref primary, game_pgn.GetLastMove());
+
             // Wait till the bot make a move
-            yield return new WaitUntil(() => mb.received_move != 0);
+            StartCoroutine(bot.ReadOutputCoroutine());
+            yield return new WaitUntil(() => bot.engine_move != 0);
         }
 
         ReceiveMove();
         ValidateMove();                                         // Validate the move played
     }
 
-    private void Next_turn(int move) {
-        tmr.Switch_player();                        // Switch side to play
-        tmr.Clock_freeze();                         // Freeze the clocks
+    private void
+    NextTurn(int move)
+    {
+        tmr.SwitchPlayer();                        // Switch side to play
+        tmr.ClockFreeze();                         // Freeze the clocks
 
         // Store move, time_left & evaluation
         float time_left = primary.pColor == 1 ? tmr.clock_white : tmr.clock_black;
         game_pgn.Add(primary.pColor, move, bot_eval, time_left);
 
         primary.MakeMove(move);                     // Make Move on board
-        Add_to_table(primary.Generate_HashKey(ref cs.HashIndex), move);   // Add to occured pos. Table
+        AddToTable(primary.GenerateHashKey(ref cs.HashIndex), move);   // Add to occured pos. Table
 
-        bh.Board_reset(false);                      // Reset Physical Board
-        bh.MarkplayedMove(move);                    // Mark the move played on board
+        bh.BoardReset(false);                      // Reset Physical Board
+        bh.MarkPlayedMove(move);                    // Mark the move played on board
         bh.Recreate(ref primary);                   // Create the new position on physical board
 
-        vMoves = cs.GenerateMoves(ref primary);     // Generate & store all legal moves in current pos.
-        int state = Is_Game_Over();                 // Check if the game is Over
+        vMoves = cs.mg.GenerateMoves(ref primary);     // Generate & store all legal moves in current pos.
+        int state = IsGameOver();                 // Check if the game is Over
 
         if (state != -1) {
             // Someone has lost, immediately cut the game
@@ -295,32 +331,18 @@ public class Engine_PvAI : MonoBehaviour {
         }
         else {
             // Game is still left, request for next move
-            StartCoroutine(Ask_For_Next_Move());
+            StartCoroutine(AskForNextMove());
         }
         return;
     }
 
-    private IEnumerator Ask_For_Next_Move() {
+    private IEnumerator
+    AskForNextMove()
+    {
         yield return new WaitForSeconds(0.2f);
-        FindObjectOfType<Timer>().Clock_unfreeze();     // Unfreeze the clocks
+        FindObjectOfType<Timer>().ClockUnfreeze();     // Unfreeze the clocks
         StartCoroutine(BotInput());                     // Ask the bot to make a move
     }
 
     #endregion
-
-    //public void ValidateMove(int move = 0) {
-    //    if (!vMoves.Start_end_pair(ip, fp)) {
-    //        return;
-    //    }
-    //    if (move == 0) {
-    //        int pColor = primary.pColor;
-    //        move = primary.board[fp] * -pColor << 15 ^ primary.board[ip] * pColor << 12 ^ fp << 6 ^ ip;
-    //        if (Mathf.Abs(primary.board[ip]) == 1 && (1L << fp & -72057594037927681L) != 0L) {
-    //            //StartCoroutine(Ask_for_promoted_piece(move));
-    //            return;
-    //        }
-    //    }
-    //    Next_turn(move);
-    //}
-
 }

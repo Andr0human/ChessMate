@@ -1,8 +1,7 @@
 using UnityEngine;
 
-public class UserInput_PvsAI : MonoBehaviour {
-
-
+public class UserInput_PvsAI : MonoBehaviour
+{
     [SerializeField] private Engine_PvAI ce;
     [HideInInspector] public bool movestarted;
     [HideInInspector] public bool castle_in_place;
@@ -10,10 +9,11 @@ public class UserInput_PvsAI : MonoBehaviour {
     public Vector2Int WorldPos;
     public Vector3 vector;
 
-    private void Update() {
-
+    private void
+    Update()
+    {
         if (Input.GetKeyDown(KeyCode.R)) {
-            ce.print_game();
+            ce.PrintGame();
             return;
         }
 
@@ -26,40 +26,49 @@ public class UserInput_PvsAI : MonoBehaviour {
         if (castle_in_place) 
             return;
         if (movestarted)
-            To_final_points();
+            ToFinalPoints();
         else
-            To_initial_points();
+            ToInitialPoints();
     }
 
-    private void To_initial_points() {
+    private void
+    ToInitialPoints()
+    {
         if (WorldPos.x < 0 || WorldPos.y < 0 || WorldPos.x >= 8 || WorldPos.y >= 8) {
             return;
         }
-        if (ce.AvailableMoves(WorldPos)) {
+        if (ce.AvailableMoves(WorldPos))
+        {
             movestarted = true;
             ce.ip = 8 * WorldPos.y + WorldPos.x;
         }
-        ce.Show_endSquares(WorldPos);
+        ce.ShowEndSquares(WorldPos);
     }
 
-    private void To_final_points() {
+    private void
+    ToFinalPoints()
+    {
         if (WorldPos.x < 0 || WorldPos.y < 0 || WorldPos.x >= 8 || WorldPos.y >= 8) {
             return;
         }
-        if (8 * WorldPos.y + WorldPos.x == ce.ip) {
-            ce.Request_board_reset();
+        if (8 * WorldPos.y + WorldPos.x == ce.ip)
+        {
+            ce.RequestBoardReset();
             movestarted = false;
             return;
         }
-        if (ce.AvailableMoves(WorldPos)) {
-            To_initial_points();
+        if (ce.AvailableMoves(WorldPos))
+        {
+            ToInitialPoints();
             return;
         }
         ce.fp = 8 * WorldPos.y + WorldPos.x;
         ce.ValidateMove(true);
     }
 
-    public int Convert(float _x) {
+    public int
+    Convert(float _x)
+    {
         bool neg = false;
         if (_x < 0) {
             neg = true;

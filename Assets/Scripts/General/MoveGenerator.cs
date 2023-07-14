@@ -2,14 +2,14 @@ using UnityEngine;
 
 public class MoveGenerator : MonoBehaviour {
 
-    public PrelookupTable pt = new PrelookupTable();
+    public LookupTable lt = new LookupTable();
     private int kpos, ekpos, eps, color;
     private readonly int ofs = 7;
     ulong mkbd = 0, Apieces, Free_sq, Attacked_Squares;
 
     #region Utility
 
-    public void Set_piece(ref ChessBoard cb) {
+    public void SetPiece(ref ChessBoard cb) {
         color = cb.pColor;
         kpos = cb.idxs[cb.Pieces[ofs + 6 * color] % 67];
         ekpos = cb.idxs[cb.Pieces[ofs - 6 * color] % 67];
@@ -40,15 +40,22 @@ public class MoveGenerator : MonoBehaviour {
         return res;
     }
 
-    private bool En_passant_recheck(int ip, ref ChessBoard cb) {
+    private bool
+    En_passant_recheck(int ip, ref ChessBoard cb) {
         ulong erq = cb.Pieces[ofs - 5 * color] ^ cb.Pieces[ofs - 4 * color];
         ulong Ap = Apieces ^ (1UL << ip) ^ (1UL << (eps - 8 * color));
-        ulong res = MSb(pt.lBoard[kpos] & Ap) | LSb(pt.rBoard[kpos] & Ap);
+        ulong res = MSb(lt.LeftMasks[kpos] & Ap) | LSb(lt.RightMasks[kpos] & Ap);
         if ((res & erq) != 0) return false;
         return true;
     }
 
-    public string Print_move(int move, ref ChessBoard __b) {
+    public string
+    PrintMove(int move, ref ChessBoard __b)
+    {
+        string IndexToRow(int __x) => (__x + 49).ToString();
+        string IndexToCol(int __y) => (__y + 97).ToString();
+        // string IndexToSquare(int __x, int __y) => IndexToCol(__y) + IndexToRow(__x);
+
         string res = "";
         int ip = move & 63, fp = (move >> 6) & 63, ip_x = ip & 7, fp_x = fp & 7;
         int ip_y = (ip - ip_x) >> 3, fp_y = (fp - fp_x) >> 3;
@@ -56,7 +63,7 @@ public class MoveGenerator : MonoBehaviour {
         color = __b.board[ip] > 0 ? 1 : -1;
         bool checks = false;
         __b.MakeMove(move);
-        if (Incheck(ref __b)) checks = true;
+        if (InCheck(ref __b)) checks = true;
         __b.UnMakeMove(move, csep);
 
         Apieces = __b.Pieces[ofs + 7] ^ __b.Pieces[ofs - 7];
@@ -64,10 +71,10 @@ public class MoveGenerator : MonoBehaviour {
             int enp = 0;
             if (fp_x - ip_x == 1 || ip_x - fp_x == 1 && _cpt == 0) enp = 1;
             if (_cpt != 0 || enp != 0) {
-                res += __b.myMap[ip_x];
+                res += IndexToCol(ip_x);
                 res += 'x';
             }
-            res += __b.myMap[fp_x];
+            res += IndexToCol(fp_x);
             res += fp_y + 1;
             int ppt = -1;
             if ((color == 1 && fp_y == 7) || (color == -1 && fp_y == 0))
@@ -80,16 +87,16 @@ public class MoveGenerator : MonoBehaviour {
         else if (_pt == 2) {
             int x, y, idx = fp;
             bool row = true, col = true, found = false;
-            ulong tmp = pt.urBoard[idx] ^ pt.ulBoard[idx] ^ pt.drBoard[idx] ^ pt.dlBoard[idx], tmp2;
+            ulong tmp = lt.UpRightMasks[idx] ^ lt.UpLeftMasks[idx] ^ lt.DownRightMasks[idx] ^ lt.DownLeftMasks[idx], tmp2;
 
-            tmp2 = pt.rBoard[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= pt.rBoard[__b.idxs[LSb(tmp2) % 67]];
-            tmp2 = pt.lBoard[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= pt.lBoard[__b.idxs[MSb(tmp2) % 67]];
-            tmp2 = pt.uBoard[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= pt.uBoard[__b.idxs[LSb(tmp2) % 67]];
-            tmp2 = pt.dBoard[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= pt.dBoard[__b.idxs[MSb(tmp2) % 67]];
+            tmp2 = lt.RightMasks[idx] & Apieces;
+            if (tmp2 != 0) tmp ^= lt.RightMasks[__b.idxs[LSb(tmp2) % 67]];
+            tmp2 = lt.LeftMasks[idx] & Apieces;
+            if (tmp2 != 0) tmp ^= lt.LeftMasks[__b.idxs[MSb(tmp2) % 67]];
+            tmp2 = lt.UpMasks[idx] & Apieces;
+            if (tmp2 != 0) tmp ^= lt.UpMasks[__b.idxs[LSb(tmp2) % 67]];
+            tmp2 = lt.DownMasks[idx] & Apieces;
+            if (tmp2 != 0) tmp ^= lt.DownMasks[__b.idxs[MSb(tmp2) % 67]];
 
             res = "B";
             tmp &= __b.Pieces[ofs + _pt * color];
@@ -104,21 +111,21 @@ public class MoveGenerator : MonoBehaviour {
                 if (y == ip_y) row = false;
             }
             if (found) {
-                if (col) res += __b.myMap[ip_x];
+                if (col) res += IndexToCol(ip_x);
                 else if (row) res += ip_y + 1;
                 else {
-                    res += __b.myMap[ip_x];
+                    res += IndexToCol(ip_x);
                     res += ip_y + 1;
                 }
             }
             if (_cpt != 0) res += 'x';
-            res += __b.myMap[fp_x];
+            res += IndexToCol(fp_x);
             res += fp_y + 1;
         }
         else if (_pt == 3) {
             int idx = fp, x, y;
             bool row = true, col = true, found = false;
-            ulong tmp = pt.NtBoard[idx];
+            ulong tmp = lt.KnightMasks[idx];
             res = "N";
             tmp &= __b.Pieces[ofs + _pt * color];
             tmp ^= 1UL << ip;
@@ -132,30 +139,30 @@ public class MoveGenerator : MonoBehaviour {
                 if (y == ip_y) row = false;
             }
             if (found) {
-                if (col) res += __b.myMap[ip_x];
+                if (col) res += IndexToCol(ip_x);
                 else if (row) res += ip_y + 1;
                 else {
-                    res += __b.myMap[ip_x];
+                    res += IndexToCol(ip_x);
                     res += ip_y + 1;
                 }
             }
             if (_cpt != 0) res += 'x';
-            res += __b.myMap[fp_x];
+            res += IndexToCol(fp_x);
             res += fp_y + 1;
         }
         else if (_pt == 4) {
             int x, y, idx = fp;
             bool __row = true, __col = true, found = false;
-            ulong tmp2, tmp = pt.rBoard[idx] ^ pt.lBoard[idx] ^ pt.uBoard[idx] ^ pt.dBoard[idx];
+            ulong tmp2, tmp = lt.RightMasks[idx] ^ lt.LeftMasks[idx] ^ lt.UpMasks[idx] ^ lt.DownMasks[idx];
 
-            tmp2 = pt.rBoard[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= pt.rBoard[__b.idxs[LSb(tmp2) % 67]];
-            tmp2 = pt.lBoard[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= pt.lBoard[__b.idxs[MSb(tmp2) % 67]];
-            tmp2 = pt.uBoard[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= pt.uBoard[__b.idxs[LSb(tmp2) % 67]];
-            tmp2 = pt.dBoard[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= pt.dBoard[__b.idxs[MSb(tmp2) % 67]];
+            tmp2 = lt.RightMasks[idx] & Apieces;
+            if (tmp2 != 0) tmp ^= lt.RightMasks[__b.idxs[LSb(tmp2) % 67]];
+            tmp2 = lt.LeftMasks[idx] & Apieces;
+            if (tmp2 != 0) tmp ^= lt.LeftMasks[__b.idxs[MSb(tmp2) % 67]];
+            tmp2 = lt.UpMasks[idx] & Apieces;
+            if (tmp2 != 0) tmp ^= lt.UpMasks[__b.idxs[LSb(tmp2) % 67]];
+            tmp2 = lt.DownMasks[idx] & Apieces;
+            if (tmp2 != 0) tmp ^= lt.DownMasks[__b.idxs[MSb(tmp2) % 67]];
 
             res = "R";
             tmp &= __b.Pieces[ofs + _pt * color];
@@ -170,40 +177,40 @@ public class MoveGenerator : MonoBehaviour {
                 if (y == ip_y) __row = false;
             }
             if (found) {
-                if (__col) res += __b.myMap[ip_x];
+                if (__col) res += IndexToCol(ip_x);
                 else if (__row) res += ip_y + 1;
                 else {
-                    res += __b.myMap[ip_x];
+                    res += IndexToCol(ip_x);
                     res += ip_y + 1;
                 }
             }
             if (_cpt != 0) res += 'x';
-            res += __b.myMap[fp_x];
+            res += IndexToCol(fp_x);
             res += fp_y + 1;
         }
         else if (_pt == 5) {
             int x, y, idx = fp;
             bool __row = true, __col = true, found = false;
 
-            ulong tmp2, tmp = pt.rBoard[idx] ^ pt.lBoard[idx] ^ pt.uBoard[idx] ^ pt.dBoard[idx]
-                ^ pt.urBoard[idx] ^ pt.ulBoard[idx] ^ pt.drBoard[idx] ^ pt.dlBoard[idx];
+            ulong tmp2, tmp = lt.RightMasks[idx] ^ lt.LeftMasks[idx] ^ lt.UpMasks[idx] ^ lt.DownMasks[idx]
+                ^ lt.UpRightMasks[idx] ^ lt.UpLeftMasks[idx] ^ lt.DownRightMasks[idx] ^ lt.DownLeftMasks[idx];
 
-            tmp2 = pt.rBoard[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= pt.rBoard[__b.idxs[LSb(tmp2) % 67]];
-            tmp2 = pt.lBoard[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= pt.lBoard[__b.idxs[MSb(tmp2) % 67]];
-            tmp2 = pt.uBoard[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= pt.uBoard[__b.idxs[LSb(tmp2) % 67]];
-            tmp2 = pt.dBoard[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= pt.dBoard[__b.idxs[MSb(tmp2) % 67]];
-            tmp2 = pt.rBoard[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= pt.rBoard[__b.idxs[LSb(tmp2) % 67]];
-            tmp2 = pt.lBoard[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= pt.lBoard[__b.idxs[MSb(tmp2) % 67]];
-            tmp2 = pt.uBoard[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= pt.uBoard[__b.idxs[LSb(tmp2) % 67]];
-            tmp2 = pt.dBoard[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= pt.dBoard[__b.idxs[MSb(tmp2) % 67]];
+            tmp2 = lt.RightMasks[idx] & Apieces;
+            if (tmp2 != 0) tmp ^= lt.RightMasks[__b.idxs[LSb(tmp2) % 67]];
+            tmp2 = lt.LeftMasks[idx] & Apieces;
+            if (tmp2 != 0) tmp ^= lt.LeftMasks[__b.idxs[MSb(tmp2) % 67]];
+            tmp2 = lt.UpMasks[idx] & Apieces;
+            if (tmp2 != 0) tmp ^= lt.UpMasks[__b.idxs[LSb(tmp2) % 67]];
+            tmp2 = lt.DownMasks[idx] & Apieces;
+            if (tmp2 != 0) tmp ^= lt.DownMasks[__b.idxs[MSb(tmp2) % 67]];
+            tmp2 = lt.RightMasks[idx] & Apieces;
+            if (tmp2 != 0) tmp ^= lt.RightMasks[__b.idxs[LSb(tmp2) % 67]];
+            tmp2 = lt.LeftMasks[idx] & Apieces;
+            if (tmp2 != 0) tmp ^= lt.LeftMasks[__b.idxs[MSb(tmp2) % 67]];
+            tmp2 = lt.UpMasks[idx] & Apieces;
+            if (tmp2 != 0) tmp ^= lt.UpMasks[__b.idxs[LSb(tmp2) % 67]];
+            tmp2 = lt.DownMasks[idx] & Apieces;
+            if (tmp2 != 0) tmp ^= lt.DownMasks[__b.idxs[MSb(tmp2) % 67]];
 
             res = "Q";
             tmp &= __b.Pieces[ofs + _pt * color];
@@ -218,15 +225,15 @@ public class MoveGenerator : MonoBehaviour {
                 if (y == ip_y) __row = false;
             }
             if (found) {
-                if (__col) res += __b.myMap[ip_x];
+                if (__col) res += IndexToCol(ip_x);
                 else if (__row) res += ip_y + 1;
                 else {
-                    res += __b.myMap[ip_x];
+                    res += IndexToCol(ip_x);
                     res += ip_y + 1;
                 }
             }
             if (_cpt != 0) res += 'x';
-            res += __b.myMap[fp_x];
+            res += IndexToCol(fp_x);
             res += fp_y + 1;
         }
         else if (_pt == 6) {
@@ -237,7 +244,7 @@ public class MoveGenerator : MonoBehaviour {
             else {
                 res += "K";
                 if (_cpt != 0) res += 'x';
-                res += __b.myMap[fp_x];
+                res += IndexToCol(fp_x);
                 res += fp_y + 1;
             }
         }
@@ -257,32 +264,32 @@ public class MoveGenerator : MonoBehaviour {
     }
 
     private ulong BishopAttkinSq(int idx, ref ChessBoard cb) {
-        ulong res, ans = pt.urBoard[idx] ^ pt.ulBoard[idx] ^ pt.drBoard[idx] ^ pt.dlBoard[idx];
-        res = pt.urBoard[idx] & Apieces;
-        if (res != 0) ans ^= pt.urBoard[cb.idxs[LSb(res) % 67]];
-        res = pt.ulBoard[idx] & Apieces;
-        if (res != 0) ans ^= pt.ulBoard[cb.idxs[LSb(res) % 67]];
-        res = pt.drBoard[idx] & Apieces;
-        if (res != 0) ans ^= pt.drBoard[cb.idxs[MSb(res) % 67]];
-        res = pt.dlBoard[idx] & Apieces;
-        if (res != 0) ans ^= pt.dlBoard[cb.idxs[MSb(res) % 67]];
+        ulong res, ans = lt.UpRightMasks[idx] ^ lt.UpLeftMasks[idx] ^ lt.DownRightMasks[idx] ^ lt.DownLeftMasks[idx];
+        res = lt.UpRightMasks[idx] & Apieces;
+        if (res != 0) ans ^= lt.UpRightMasks[cb.idxs[LSb(res) % 67]];
+        res = lt.UpLeftMasks[idx] & Apieces;
+        if (res != 0) ans ^= lt.UpLeftMasks[cb.idxs[LSb(res) % 67]];
+        res = lt.DownRightMasks[idx] & Apieces;
+        if (res != 0) ans ^= lt.DownRightMasks[cb.idxs[MSb(res) % 67]];
+        res = lt.DownLeftMasks[idx] & Apieces;
+        if (res != 0) ans ^= lt.DownLeftMasks[cb.idxs[MSb(res) % 67]];
         return ans;
     }
 
     private ulong KnightAttkinSq(int idx) {
-        return pt.NtBoard[idx];
+        return lt.KnightMasks[idx];
     }
 
     private ulong RookAttkinSq(int idx, ref ChessBoard cb) {
-        ulong res, ans = pt.rBoard[idx] ^ pt.lBoard[idx] ^ pt.uBoard[idx] ^ pt.dBoard[idx];
-        res = pt.rBoard[idx] & Apieces;
-        if (res != 0) ans ^= pt.rBoard[cb.idxs[LSb(res) % 67]];
-        res = pt.lBoard[idx] & Apieces;
-        if (res != 0) ans ^= pt.lBoard[cb.idxs[MSb(res) % 67]];
-        res = pt.uBoard[idx] & Apieces;
-        if (res != 0) ans ^= pt.uBoard[cb.idxs[LSb(res) % 67]];
-        res = pt.dBoard[idx] & Apieces;
-        if (res != 0) ans ^= pt.dBoard[cb.idxs[MSb(res) % 67]];
+        ulong res, ans = lt.RightMasks[idx] ^ lt.LeftMasks[idx] ^ lt.UpMasks[idx] ^ lt.DownMasks[idx];
+        res = lt.RightMasks[idx] & Apieces;
+        if (res != 0) ans ^= lt.RightMasks[cb.idxs[LSb(res) % 67]];
+        res = lt.LeftMasks[idx] & Apieces;
+        if (res != 0) ans ^= lt.LeftMasks[cb.idxs[MSb(res) % 67]];
+        res = lt.UpMasks[idx] & Apieces;
+        if (res != 0) ans ^= lt.UpMasks[cb.idxs[LSb(res) % 67]];
+        res = lt.DownMasks[idx] & Apieces;
+        if (res != 0) ans ^= lt.DownMasks[cb.idxs[MSb(res) % 67]];
         return ans;
     }
 
@@ -293,67 +300,67 @@ public class MoveGenerator : MonoBehaviour {
     private ulong PawnMovement(int idx, ref ChessBoard cb) {
         ulong ans = 0;
         if (color == 1) {
-            ans |= pt.wPboard[idx] & Free_sq;
-            if (idx > 7 && idx < 16 && ((pt.wPboard[idx] ^ pt.wPboard[idx + 8]) & Apieces) == 0)
-                ans |= pt.wPboard[idx + 8];
-            ans |= pt.wpCboard[idx] & cb.Pieces[ofs - 7 * color];
-            if (eps != 64 && (pt.wpCboard[idx] & (1UL << eps)) != 0) {
-                if (En_passant_recheck(idx, ref cb)) ans |= pt.wpCboard[idx] & (1UL << eps);
+            ans |= lt.wPboard[idx] & Free_sq;
+            if (idx > 7 && idx < 16 && ((lt.wPboard[idx] ^ lt.wPboard[idx + 8]) & Apieces) == 0)
+                ans |= lt.wPboard[idx + 8];
+            ans |= lt.wpCboard[idx] & cb.Pieces[ofs - 7 * color];
+            if (eps != 64 && (lt.wpCboard[idx] & (1UL << eps)) != 0) {
+                if (En_passant_recheck(idx, ref cb)) ans |= lt.wpCboard[idx] & (1UL << eps);
             }
             return ans;
         }
-        ans |= pt.bPboard[idx] & Free_sq;
-        if (idx > 47 && ((pt.bPboard[idx] ^ pt.bPboard[idx - 8]) & Apieces) == 0)
-            ans |= pt.bPboard[idx - 8];
-        ans |= pt.bpCboard[idx] & cb.Pieces[ofs - 7 * color];
-        if (eps != 64 && (pt.bpCboard[idx] & (1UL << eps)) != 0) {
-            if (En_passant_recheck(idx, ref cb)) ans |= pt.bpCboard[idx] & (1UL << eps);
+        ans |= lt.bPboard[idx] & Free_sq;
+        if (idx > 47 && ((lt.bPboard[idx] ^ lt.bPboard[idx - 8]) & Apieces) == 0)
+            ans |= lt.bPboard[idx - 8];
+        ans |= lt.bpCboard[idx] & cb.Pieces[ofs - 7 * color];
+        if (eps != 64 && (lt.bpCboard[idx] & (1UL << eps)) != 0) {
+            if (En_passant_recheck(idx, ref cb)) ans |= lt.bpCboard[idx] & (1UL << eps);
         }
         return ans;
     }
 
     private ulong BishopMovement(int idx, ref ChessBoard cb) {
-        ulong res, ans = pt.urBoard[idx] ^ pt.ulBoard[idx] ^ pt.drBoard[idx] ^ pt.dlBoard[idx];
+        ulong res, ans = lt.UpRightMasks[idx] ^ lt.UpLeftMasks[idx] ^ lt.DownRightMasks[idx] ^ lt.DownLeftMasks[idx];
 
-        res = pt.urBoard[idx] & Apieces;
-        if (res != 0) ans ^= pt.urBoard[cb.idxs[LSb(res) % 67]];
+        res = lt.UpRightMasks[idx] & Apieces;
+        if (res != 0) ans ^= lt.UpRightMasks[cb.idxs[LSb(res) % 67]];
 
-        res = pt.ulBoard[idx] & Apieces;
-        if (res != 0) ans ^= pt.ulBoard[cb.idxs[LSb(res) % 67]];
+        res = lt.UpLeftMasks[idx] & Apieces;
+        if (res != 0) ans ^= lt.UpLeftMasks[cb.idxs[LSb(res) % 67]];
 
-        res = pt.drBoard[idx] & Apieces;
-        if (res != 0) ans ^= pt.drBoard[cb.idxs[MSb(res) % 67]];
+        res = lt.DownRightMasks[idx] & Apieces;
+        if (res != 0) ans ^= lt.DownRightMasks[cb.idxs[MSb(res) % 67]];
 
-        res = pt.dlBoard[idx] & Apieces;
-        if (res != 0) ans ^= pt.dlBoard[cb.idxs[MSb(res) % 67]];
+        res = lt.DownLeftMasks[idx] & Apieces;
+        if (res != 0) ans ^= lt.DownLeftMasks[cb.idxs[MSb(res) % 67]];
 
         return ans ^ (ans & cb.Pieces[7 + 7 * color]);
     }
 
     private ulong RookMovement(int idx, ref ChessBoard cb) {
-        ulong res, ans = pt.rBoard[idx] ^ pt.lBoard[idx] ^ pt.uBoard[idx] ^ pt.dBoard[idx];
+        ulong res, ans = lt.RightMasks[idx] ^ lt.LeftMasks[idx] ^ lt.UpMasks[idx] ^ lt.DownMasks[idx];
 
-        res = pt.rBoard[idx] & Apieces;
-        if (res != 0) ans ^= pt.rBoard[cb.idxs[LSb(res) % 67]];
+        res = lt.RightMasks[idx] & Apieces;
+        if (res != 0) ans ^= lt.RightMasks[cb.idxs[LSb(res) % 67]];
 
-        res = pt.lBoard[idx] & Apieces;
-        if (res != 0) ans ^= pt.lBoard[cb.idxs[MSb(res) % 67]];
+        res = lt.LeftMasks[idx] & Apieces;
+        if (res != 0) ans ^= lt.LeftMasks[cb.idxs[MSb(res) % 67]];
 
-        res = pt.uBoard[idx] & Apieces;
-        if (res != 0) ans ^= pt.uBoard[cb.idxs[LSb(res) % 67]];
+        res = lt.UpMasks[idx] & Apieces;
+        if (res != 0) ans ^= lt.UpMasks[cb.idxs[LSb(res) % 67]];
 
-        res = pt.dBoard[idx] & Apieces;
-        if (res != 0) ans ^= pt.dBoard[cb.idxs[MSb(res) % 67]];
+        res = lt.DownMasks[idx] & Apieces;
+        if (res != 0) ans ^= lt.DownMasks[cb.idxs[MSb(res) % 67]];
 
         return ans ^ (ans & cb.Pieces[7 + 7 * color]);
     }
 
     private ulong KnightMovement(int idx, ref ChessBoard cb) {
-        ulong ans = pt.NtBoard[idx];
+        ulong ans = lt.KnightMasks[idx];
         return ans ^ (ans & cb.Pieces[7 + 7 * color]);
     }
 
-    private void pinnedPieceList(ref ChessBoard cb, ref MoveList myMoves) {
+    private void PinnedPieces(ref ChessBoard cb, ref MoveList myMoves) {
         ulong tmp, val1, val2, ans, rem_k = ~(1UL << (kpos));
         ulong rq = cb.Pieces[ofs + 5 * color] ^ cb.Pieces[ofs + 4 * color];
         ulong bq = cb.Pieces[ofs + 5 * color] ^ cb.Pieces[ofs + 2 * color];
@@ -361,141 +368,141 @@ public class MoveGenerator : MonoBehaviour {
         ulong ebq = cb.Pieces[ofs - 5 * color] ^ cb.Pieces[ofs - 2 * color];
         if (erq == 0 && ebq == 0) return;
 
-        tmp = pt.rBoard[kpos] & Apieces;
+        tmp = lt.RightMasks[kpos] & Apieces;
         val1 = LSb(tmp);
         val2 = LSb(tmp ^ val1);
         if ((val2 & erq) != 0) {
             if ((val1 & rq) != 0) {
                 int idx = cb.idxs[val1 % 67];
-                myMoves.Add(idx, (pt.rBoard[kpos] ^ pt.rBoard[cb.idxs[val2 % 67]] ^ (1UL << idx)) & rem_k);
+                myMoves.Add(idx, (lt.RightMasks[kpos] ^ lt.RightMasks[cb.idxs[val2 % 67]] ^ (1UL << idx)) & rem_k);
             }
             mkbd ^= val1;
         }
 
-        tmp = pt.lBoard[kpos] & Apieces;
+        tmp = lt.LeftMasks[kpos] & Apieces;
         val1 = MSb(tmp);
         val2 = MSb(tmp ^ val1);
         if ((val2 & erq) != 0) {
             if ((val1 & rq) != 0) {
                 int idx = cb.idxs[val1 % 67];
-                myMoves.Add(idx, (pt.lBoard[kpos] ^ pt.lBoard[cb.idxs[val2 % 67]] ^ (1UL << idx)) & rem_k);
+                myMoves.Add(idx, (lt.LeftMasks[kpos] ^ lt.LeftMasks[cb.idxs[val2 % 67]] ^ (1UL << idx)) & rem_k);
             }
             mkbd ^= val1;
         }
 
-        tmp = pt.uBoard[kpos] & Apieces;
+        tmp = lt.UpMasks[kpos] & Apieces;
         val1 = LSb(tmp);
         val2 = LSb(tmp ^ val1);
         if ((val2 & erq) != 0) {
             if ((val1 & rq) != 0) {
                 int idx = cb.idxs[val1 % 67];
-                myMoves.Add(idx, (pt.uBoard[kpos] ^ pt.uBoard[cb.idxs[val2 % 67]] ^ (1UL << idx)) & rem_k);
+                myMoves.Add(idx, (lt.UpMasks[kpos] ^ lt.UpMasks[cb.idxs[val2 % 67]] ^ (1UL << idx)) & rem_k);
             }
             else if (color == 1 && (val1 & cb.Pieces[8]) != 0) {
                 int idx = cb.idxs[val1 % 67];
-                ans = (pt.wPboard[idx] & Apieces) ^ pt.wPboard[idx];
-                if (idx < 16 && ((pt.wPboard[idx] ^ pt.wPboard[idx + 8]) & Apieces) == 0)
-                    ans |= pt.wPboard[idx + 8];
+                ans = (lt.wPboard[idx] & Apieces) ^ lt.wPboard[idx];
+                if (idx < 16 && ((lt.wPboard[idx] ^ lt.wPboard[idx + 8]) & Apieces) == 0)
+                    ans |= lt.wPboard[idx + 8];
                 myMoves.Add(idx, ans);
             }
             else if (color == -1 && (val1 & cb.Pieces[6]) != 0) {
                 int idx = cb.idxs[val1 % 67];
-                ans = pt.bPboard[idx] & Free_sq;
-                if (idx > 47 && ((pt.bPboard[idx] ^ pt.bPboard[idx - 8]) & Apieces) == 0)
-                    ans |= pt.bPboard[idx - 8];
+                ans = lt.bPboard[idx] & Free_sq;
+                if (idx > 47 && ((lt.bPboard[idx] ^ lt.bPboard[idx - 8]) & Apieces) == 0)
+                    ans |= lt.bPboard[idx - 8];
                 myMoves.Add(idx, ans);
             }
             mkbd ^= val1;
         }
 
-        tmp = pt.dBoard[kpos] & Apieces;
+        tmp = lt.DownMasks[kpos] & Apieces;
         val1 = MSb(tmp);
         val2 = MSb(tmp ^ val1);
         if ((val2 & erq) != 0) {
             if ((val1 & rq) != 0) {
                 int idx = cb.idxs[val1 % 67];
-                myMoves.Add(idx, (pt.dBoard[kpos] ^ pt.dBoard[cb.idxs[val2 % 67]] ^ (1UL << idx)) & rem_k);
+                myMoves.Add(idx, (lt.DownMasks[kpos] ^ lt.DownMasks[cb.idxs[val2 % 67]] ^ (1UL << idx)) & rem_k);
             }
             else if (color == -1 && (val1 & cb.Pieces[6]) != 0) {
                 int idx = cb.idxs[val1 % 67];
-                ans = pt.bPboard[idx] & Free_sq;
-                if (idx > 47 && ((pt.bPboard[idx] ^ pt.bPboard[idx - 8]) & Apieces) == 0)
-                    ans |= pt.bPboard[idx - 8];
+                ans = lt.bPboard[idx] & Free_sq;
+                if (idx > 47 && ((lt.bPboard[idx] ^ lt.bPboard[idx - 8]) & Apieces) == 0)
+                    ans |= lt.bPboard[idx - 8];
                 myMoves.Add(idx, ans);
             }
             else if (color == 1 && (val1 & cb.Pieces[8]) != 0) {
                 int idx = cb.idxs[val1 % 67];
-                ans = pt.wPboard[idx] & Free_sq;
-                if (idx < 16 && ((pt.wPboard[idx] ^ pt.wPboard[idx + 8]) & Apieces) == 0)
-                    ans |= pt.wPboard[idx + 8];
+                ans = lt.wPboard[idx] & Free_sq;
+                if (idx < 16 && ((lt.wPboard[idx] ^ lt.wPboard[idx + 8]) & Apieces) == 0)
+                    ans |= lt.wPboard[idx + 8];
                 myMoves.Add(idx, ans);
             }
             mkbd ^= val1;
         }
 
-        tmp = pt.urBoard[kpos] & Apieces;
+        tmp = lt.UpRightMasks[kpos] & Apieces;
         val1 = LSb(tmp);
         val2 = LSb(tmp ^ val1);
         if ((val2 & ebq) != 0) {
             if ((val1 & bq) != 0) {
                 int idx = cb.idxs[val1 % 67];
-                myMoves.Add(idx, (pt.urBoard[kpos] ^ pt.urBoard[cb.idxs[val2 % 67]] ^ (1UL << idx)) & rem_k);
+                myMoves.Add(idx, (lt.UpRightMasks[kpos] ^ lt.UpRightMasks[cb.idxs[val2 % 67]] ^ (1UL << idx)) & rem_k);
             }
             else if (color == 1 && (val1 & cb.Pieces[8]) != 0) {
                 int idx = cb.idxs[val1 % 67];
-                myMoves.Add(idx, pt.wpCboard[idx] & val2);
-                if (eps != 64 && (((pt.urBoard[kpos] ^ pt.urBoard[cb.idxs[val2 % 67]]) & (1UL << eps)) != 0))
-                    myMoves.Add(idx, pt.wpCboard[idx] & (1UL << eps));
+                myMoves.Add(idx, lt.wpCboard[idx] & val2);
+                if (eps != 64 && (((lt.UpRightMasks[kpos] ^ lt.UpRightMasks[cb.idxs[val2 % 67]]) & (1UL << eps)) != 0))
+                    myMoves.Add(idx, lt.wpCboard[idx] & (1UL << eps));
             }
             mkbd ^= val1;
         }
-        tmp = pt.ulBoard[kpos] & Apieces;
+        tmp = lt.UpLeftMasks[kpos] & Apieces;
         val1 = LSb(tmp);
         val2 = LSb(tmp ^ val1);
         if ((val2 & ebq) != 0) {
             if ((val1 & bq) != 0) {
                 int idx = cb.idxs[val1 % 67];
-                myMoves.Add(idx, (pt.ulBoard[kpos] ^ pt.ulBoard[cb.idxs[val2 % 67]] ^ (1UL << idx)) & rem_k);
+                myMoves.Add(idx, (lt.UpLeftMasks[kpos] ^ lt.UpLeftMasks[cb.idxs[val2 % 67]] ^ (1UL << idx)) & rem_k);
             }
             else if (color == 1 && (val1 & cb.Pieces[8]) != 0) {
                 int idx = cb.idxs[val1 % 67];
-                myMoves.Add(idx, pt.wpCboard[idx] & val2);
-                if (eps != 64 && (((pt.ulBoard[kpos] ^ pt.ulBoard[cb.idxs[val2 % 67]]) & (1UL << eps)) != 0))
-                    myMoves.Add(idx, pt.wpCboard[idx] & (1UL << eps));
+                myMoves.Add(idx, lt.wpCboard[idx] & val2);
+                if (eps != 64 && (((lt.UpLeftMasks[kpos] ^ lt.UpLeftMasks[cb.idxs[val2 % 67]]) & (1UL << eps)) != 0))
+                    myMoves.Add(idx, lt.wpCboard[idx] & (1UL << eps));
             }
             mkbd ^= val1;
         }
 
-        tmp = pt.drBoard[kpos] & Apieces;
+        tmp = lt.DownRightMasks[kpos] & Apieces;
         val1 = MSb(tmp);
         val2 = MSb(tmp ^ val1);
         if ((val2 & ebq) != 0) {
             if ((val1 & bq) != 0) {
                 int idx = cb.idxs[val1 % 67];
-                myMoves.Add(idx, (pt.drBoard[kpos] ^ pt.drBoard[cb.idxs[val2 % 67]] ^ (1UL << idx)) & rem_k);
+                myMoves.Add(idx, (lt.DownRightMasks[kpos] ^ lt.DownRightMasks[cb.idxs[val2 % 67]] ^ (1UL << idx)) & rem_k);
             }
             else if (color == -1 && (val1 & cb.Pieces[6]) != 0) {
                 int idx = cb.idxs[val1 % 67];
-                myMoves.Add(idx, pt.bpCboard[idx] & val2);
-                if (eps != 64 && (((pt.drBoard[kpos] ^ pt.drBoard[cb.idxs[val2 % 67]]) & (1UL << eps)) != 0))
-                    myMoves.Add(idx, pt.bpCboard[idx] & (1UL << eps));
+                myMoves.Add(idx, lt.bpCboard[idx] & val2);
+                if (eps != 64 && (((lt.DownRightMasks[kpos] ^ lt.DownRightMasks[cb.idxs[val2 % 67]]) & (1UL << eps)) != 0))
+                    myMoves.Add(idx, lt.bpCboard[idx] & (1UL << eps));
             }
             mkbd ^= val1;
         }
 
-        tmp = pt.dlBoard[kpos] & Apieces;
+        tmp = lt.DownLeftMasks[kpos] & Apieces;
         val1 = MSb(tmp);
         val2 = MSb(tmp ^ val1);
         if ((val2 & ebq) != 0) {
             if ((val1 & bq) != 0) {
                 int idx = cb.idxs[val1 % 67];
-                myMoves.Add(idx, (pt.dlBoard[kpos] ^ pt.dlBoard[cb.idxs[val2 % 67]] ^ (1UL << idx)) & rem_k);
+                myMoves.Add(idx, (lt.DownLeftMasks[kpos] ^ lt.DownLeftMasks[cb.idxs[val2 % 67]] ^ (1UL << idx)) & rem_k);
             }
             else if (color == -1 && (val1 & cb.Pieces[6]) != 0) {
                 int idx = cb.idxs[val1 % 67];
-                myMoves.Add(idx, pt.bpCboard[idx] & val2);
-                if (eps != 64 && (((pt.dlBoard[kpos] ^ pt.dlBoard[cb.idxs[val2 % 67]]) & (1UL << eps)) != 0))
-                    myMoves.Add(idx, pt.bpCboard[idx] & (1UL << eps));
+                myMoves.Add(idx, lt.bpCboard[idx] & val2);
+                if (eps != 64 && (((lt.DownLeftMasks[kpos] ^ lt.DownLeftMasks[cb.idxs[val2 % 67]]) & (1UL << eps)) != 0))
+                    myMoves.Add(idx, lt.bpCboard[idx] & (1UL << eps));
             }
             mkbd ^= val1;
         }
@@ -505,7 +512,7 @@ public class MoveGenerator : MonoBehaviour {
 
     public void Ka_zero_pieceMovement(ref ChessBoard cb, ref MoveList myMoves) {
         mkbd = 0;
-        pinnedPieceList(ref cb, ref myMoves);
+        PinnedPieces(ref cb, ref myMoves);
         ulong tmp, val, marked_piece = mkbd & cb.Pieces[ofs + 7 * color];
         int idx;
 
@@ -573,34 +580,34 @@ public class MoveGenerator : MonoBehaviour {
     #region TypeC
 
     private ulong RMovesC(int idx, ulong res) {
-        if ((LSb(pt.rBoard[idx] & Apieces) & res) != 0) return res;
-        if ((MSb(pt.lBoard[idx] & Apieces) & res) != 0) return res;
-        if ((LSb(pt.uBoard[idx] & Apieces) & res) != 0) return res;
-        if ((MSb(pt.dBoard[idx] & Apieces) & res) != 0) return res;
+        if ((LSb(lt.RightMasks[idx] & Apieces) & res) != 0) return res;
+        if ((MSb(lt.LeftMasks[idx] & Apieces) & res) != 0) return res;
+        if ((LSb(lt.UpMasks[idx] & Apieces) & res) != 0) return res;
+        if ((MSb(lt.DownMasks[idx] & Apieces) & res) != 0) return res;
         return 0;
     }
 
     private ulong BMovesC(int idx, ulong res) {
-        if ((LSb(pt.urBoard[idx] & Apieces) & res) != 0) return res;
-        if ((LSb(pt.ulBoard[idx] & Apieces) & res) != 0) return res;
-        if ((MSb(pt.drBoard[idx] & Apieces) & res) != 0) return res;
-        if ((MSb(pt.dlBoard[idx] & Apieces) & res) != 0) return res;
+        if ((LSb(lt.UpRightMasks[idx] & Apieces) & res) != 0) return res;
+        if ((LSb(lt.UpLeftMasks[idx] & Apieces) & res) != 0) return res;
+        if ((MSb(lt.DownRightMasks[idx] & Apieces) & res) != 0) return res;
+        if ((MSb(lt.DownLeftMasks[idx] & Apieces) & res) != 0) return res;
         return 0;
     }
 
     private ulong NMovesC(int idx, ulong res) {
-        if ((pt.NtBoard[idx] & res) != 0) return res;
+        if ((lt.KnightMasks[idx] & res) != 0) return res;
         return 0;
     }
 
     private ulong PMovesC(int idx, ulong res) {
         if (color == 1) {
-            if ((pt.wpCboard[idx] & res) != 0) return res;
-            if (eps != 64 && (pt.wpCboard[idx] & (1UL << eps)) != 0) return (1UL << eps);
+            if ((lt.wpCboard[idx] & res) != 0) return res;
+            if (eps != 64 && (lt.wpCboard[idx] & (1UL << eps)) != 0) return (1UL << eps);
         }
         if (color == -1) {
-            if ((pt.bpCboard[idx] & res) != 0) return res;
-            if (eps != 64 && (pt.bpCboard[idx] & (1UL << eps)) != 0) return (1UL << eps);
+            if ((lt.bpCboard[idx] & res) != 0) return res;
+            if (eps != 64 && (lt.bpCboard[idx] & (1UL << eps)) != 0) return (1UL << eps);
         }
         return 0;
     }
@@ -619,47 +626,47 @@ public class MoveGenerator : MonoBehaviour {
     private void PieceMovesTypeS(int idx, int type, ref ChessBoard cb, ref MoveList myMoves, ulong area) {
         if (type == 1) myMoves.Add(idx, PawnMovement(idx, ref cb) & area);
         else if (type == 2) myMoves.Add(idx, BishopMovement(idx, ref cb) & area);
-        else if (type == 3) myMoves.Add(idx, pt.NtBoard[idx] & area);
+        else if (type == 3) myMoves.Add(idx, lt.KnightMasks[idx] & area);
         else if (type == 4) myMoves.Add(idx, RookMovement(idx, ref cb) & area);
         else if (type == 5)
             myMoves.Add(idx, (RookMovement(idx, ref cb) & area) | (BishopMovement(idx, ref cb) & area));
         return;
     }
 
-    private void Ka_pinnedPieceList(ref ChessBoard cb) {
+    private void Ka_PinnedPieces(ref ChessBoard cb) {
         ulong tmp, v1, v2, OwnP = cb.Pieces[7 + 7 * color];
         ulong erq = cb.Pieces[ofs - 5 * color] | cb.Pieces[ofs - 4 * color];
         ulong ebq = cb.Pieces[ofs - 5 * color] | cb.Pieces[ofs - 2 * color];
 
-        tmp = pt.rBoard[kpos] & Apieces;
+        tmp = lt.RightMasks[kpos] & Apieces;
         v1 = LSb(tmp); v2 = LSb(tmp ^ v1);
         if ((v1 & OwnP) != 0 && (v2 & erq) != 0) mkbd ^= v1;
 
-        tmp = pt.lBoard[kpos] & Apieces;
+        tmp = lt.LeftMasks[kpos] & Apieces;
         v1 = MSb(tmp); v2 = MSb(tmp ^ v1);
         if ((v1 & OwnP) != 0 && (v2 & erq) != 0) mkbd ^= v1;
 
-        tmp = pt.uBoard[kpos] & Apieces;
+        tmp = lt.UpMasks[kpos] & Apieces;
         v1 = LSb(tmp); v2 = LSb(tmp ^ v1);
         if ((v1 & OwnP) != 0 && (v2 & erq) != 0) mkbd ^= v1;
 
-        tmp = pt.dBoard[kpos] & Apieces;
+        tmp = lt.DownMasks[kpos] & Apieces;
         v1 = MSb(tmp); v2 = MSb(tmp ^ v1);
         if ((v1 & OwnP) != 0 && (v2 & erq) != 0) mkbd ^= v1;
 
-        tmp = pt.urBoard[kpos] & Apieces;
+        tmp = lt.UpRightMasks[kpos] & Apieces;
         v1 = LSb(tmp); v2 = LSb(tmp ^ v1);
         if ((v1 & OwnP) != 0 && (v2 & ebq) != 0) mkbd ^= v1;
 
-        tmp = pt.ulBoard[kpos] & Apieces;
+        tmp = lt.UpLeftMasks[kpos] & Apieces;
         v1 = LSb(tmp); v2 = LSb(tmp ^ v1);
         if ((v1 & OwnP) != 0 && (v2 & ebq) != 0) mkbd ^= v1;
 
-        tmp = pt.drBoard[kpos] & Apieces;
+        tmp = lt.DownRightMasks[kpos] & Apieces;
         v1 = MSb(tmp); v2 = MSb(tmp ^ v1);
         if ((v1 & OwnP) != 0 && (v2 & ebq) != 0) mkbd ^= v1;
 
-        tmp = pt.dlBoard[kpos] & Apieces;
+        tmp = lt.DownLeftMasks[kpos] & Apieces;
         v1 = MSb(tmp); v2 = MSb(tmp ^ v1);
         if ((v1 & OwnP) != 0 && (v2 & ebq) != 0) mkbd ^= v1;
 
@@ -669,7 +676,7 @@ public class MoveGenerator : MonoBehaviour {
     public void Ka_pieceMovement(ref ChessBoard cb, ref MoveList myMoves, ref KAinfo atk) {
         ulong val, tmp;
         mkbd = 0;
-        Ka_pinnedPieceList(ref cb);
+        Ka_PinnedPieces(ref cb);
 
         for (int i = 1; i < 6; i++) {
             tmp = cb.Pieces[ofs + i * color];
@@ -690,45 +697,45 @@ public class MoveGenerator : MonoBehaviour {
 
     #region King Move Generation
 
-    public bool Incheck(ref ChessBoard cb) {
+    public bool InCheck(ref ChessBoard cb) {
 
         int cl = cb.pColor, idx = cb.idxs[cb.Pieces[ofs + 6 * cl] % 67];
         ulong Apieces = cb.Pieces[ofs + 7] ^ cb.Pieces[ofs - 7];
         ulong erq = cb.Pieces[ofs - 4 * cl] ^ cb.Pieces[ofs - 5 * cl];
         ulong ebq = cb.Pieces[ofs - 2 * cl] ^ cb.Pieces[ofs - 5 * cl];
 
-        ulong res, ans = pt.rBoard[idx] ^ pt.lBoard[idx] ^ pt.uBoard[idx] ^ pt.dBoard[idx];
-        res = pt.rBoard[idx] & Apieces;
-        if (res != 0) ans ^= pt.rBoard[cb.idxs[LSb(res) % 67]];
-        res = pt.lBoard[idx] & Apieces;
-        if (res != 0) ans ^= pt.lBoard[cb.idxs[MSb(res) % 67]];
-        res = pt.uBoard[idx] & Apieces;
-        if (res != 0) ans ^= pt.uBoard[cb.idxs[LSb(res) % 67]];
-        res = pt.dBoard[idx] & Apieces;
-        if (res != 0) ans ^= pt.dBoard[cb.idxs[MSb(res) % 67]];
+        ulong res, ans = lt.RightMasks[idx] ^ lt.LeftMasks[idx] ^ lt.UpMasks[idx] ^ lt.DownMasks[idx];
+        res = lt.RightMasks[idx] & Apieces;
+        if (res != 0) ans ^= lt.RightMasks[cb.idxs[LSb(res) % 67]];
+        res = lt.LeftMasks[idx] & Apieces;
+        if (res != 0) ans ^= lt.LeftMasks[cb.idxs[MSb(res) % 67]];
+        res = lt.UpMasks[idx] & Apieces;
+        if (res != 0) ans ^= lt.UpMasks[cb.idxs[LSb(res) % 67]];
+        res = lt.DownMasks[idx] & Apieces;
+        if (res != 0) ans ^= lt.DownMasks[cb.idxs[MSb(res) % 67]];
         if ((ans & erq) != 0) return true;
 
-        ans = pt.rBoard[idx] ^ pt.lBoard[idx] ^ pt.uBoard[idx] ^ pt.dBoard[idx];
-        res = pt.urBoard[idx] & Apieces;
-        if (res != 0) ans ^= pt.urBoard[cb.idxs[LSb(res) % 67]];
-        res = pt.ulBoard[idx] & Apieces;
-        if (res != 0) ans ^= pt.ulBoard[cb.idxs[LSb(res) % 67]];
-        res = pt.drBoard[idx] & Apieces;
-        if (res != 0) ans ^= pt.drBoard[cb.idxs[MSb(res) % 67]];
-        res = pt.dlBoard[idx] & Apieces;
-        if (res != 0) ans ^= pt.dlBoard[cb.idxs[MSb(res) % 67]];
+        ans = lt.RightMasks[idx] ^ lt.LeftMasks[idx] ^ lt.UpMasks[idx] ^ lt.DownMasks[idx];
+        res = lt.UpRightMasks[idx] & Apieces;
+        if (res != 0) ans ^= lt.UpRightMasks[cb.idxs[LSb(res) % 67]];
+        res = lt.UpLeftMasks[idx] & Apieces;
+        if (res != 0) ans ^= lt.UpLeftMasks[cb.idxs[LSb(res) % 67]];
+        res = lt.DownRightMasks[idx] & Apieces;
+        if (res != 0) ans ^= lt.DownRightMasks[cb.idxs[MSb(res) % 67]];
+        res = lt.DownLeftMasks[idx] & Apieces;
+        if (res != 0) ans ^= lt.DownLeftMasks[cb.idxs[MSb(res) % 67]];
         if ((ans & ebq) != 0) return true;
 
-        ans = pt.NtBoard[idx];
+        ans = lt.KnightMasks[idx];
         if ((ans & cb.Pieces[ofs - 3 * cl]) != 0) return true;
 
-        ans = cl == 1 ? pt.wpCboard[idx] : pt.bpCboard[idx];
+        ans = cl == 1 ? lt.wpCboard[idx] : lt.bpCboard[idx];
         if ((ans & cb.Pieces[ofs - cl]) != 0) return true;
 
         return false;
     }
 
-    public void Generate_AttackedSquares(ref ChessBoard cb) {
+    public void GenerateAttackedSquares(ref ChessBoard cb) {
         ulong ans = 0, tmp, val;
         color *= -1;
         Apieces ^= 1UL << kpos;
@@ -757,95 +764,95 @@ public class MoveGenerator : MonoBehaviour {
             tmp &= tmp - 1;
             ans |= RookAttkinSq(cb.idxs[val % 67], ref cb) | BishopAttkinSq(cb.idxs[val % 67], ref cb);
         }
-        ans |= pt.Kboard[ekpos];
+        ans |= lt.KingMasks[ekpos];
         color *= -1;
         Apieces ^= 1UL << kpos;
         Attacked_Squares = ans;
         return;
     }
 
-    public KAinfo FindkingAttackers(ref ChessBoard cb) {
+    public KAinfo FindKingAttackers(ref ChessBoard cb) {
         KAinfo info = new KAinfo();
         if (((1UL << kpos) & Attacked_Squares) == 0) return info;
         ulong res, rem_k = ~(1UL << (kpos));
         ulong rq = cb.Pieces[ofs - 5 * color] | cb.Pieces[ofs - 4 * color];
         ulong bq = cb.Pieces[ofs - 5 * color] | cb.Pieces[ofs - 2 * color];
-        if ((pt.uBoard[kpos] & rq) != 0) {
-            res = LSb(pt.uBoard[kpos] & Apieces);
+        if ((lt.UpMasks[kpos] & rq) != 0) {
+            res = LSb(lt.UpMasks[kpos] & Apieces);
             if ((rq & res) != 0) {
                 int pos = cb.idxs[(rq & res) % 67];
-                info.Add((pt.uBoard[kpos] ^ pt.uBoard[pos]) & rem_k, 0);
+                info.Add((lt.UpMasks[kpos] ^ lt.UpMasks[pos]) & rem_k, 0);
             }
         }
 
-        if ((pt.dBoard[kpos] & rq) != 0) {
-            res = MSb(pt.dBoard[kpos] & Apieces);
+        if ((lt.DownMasks[kpos] & rq) != 0) {
+            res = MSb(lt.DownMasks[kpos] & Apieces);
             if ((rq & res) != 0) {
                 int pos = cb.idxs[(rq & res) % 67];
-                info.Add((pt.dBoard[kpos] ^ pt.dBoard[pos]) & rem_k, 0);
+                info.Add((lt.DownMasks[kpos] ^ lt.DownMasks[pos]) & rem_k, 0);
             }
         }
 
-        if ((pt.lBoard[kpos] & rq) != 0) {
-            res = MSb(pt.lBoard[kpos] & Apieces);
+        if ((lt.LeftMasks[kpos] & rq) != 0) {
+            res = MSb(lt.LeftMasks[kpos] & Apieces);
             if ((rq & res) != 0) {
                 int pos = cb.idxs[(rq & res) % 67];
-                info.Add((pt.lBoard[kpos] ^ pt.lBoard[pos]) & rem_k, 0);
+                info.Add((lt.LeftMasks[kpos] ^ lt.LeftMasks[pos]) & rem_k, 0);
             }
         }
 
-        if ((pt.rBoard[kpos] & rq) != 0) {
-            res = LSb(pt.rBoard[kpos] & Apieces);
+        if ((lt.RightMasks[kpos] & rq) != 0) {
+            res = LSb(lt.RightMasks[kpos] & Apieces);
             if ((rq & res) != 0) {
                 int pos = cb.idxs[(rq & res) % 67];
-                info.Add((pt.rBoard[kpos] ^ pt.rBoard[pos]) & rem_k, 0);
+                info.Add((lt.RightMasks[kpos] ^ lt.RightMasks[pos]) & rem_k, 0);
             }
         }
 
-        if ((pt.urBoard[kpos] & bq) != 0) {
-            res = LSb(pt.urBoard[kpos] & Apieces);
+        if ((lt.UpRightMasks[kpos] & bq) != 0) {
+            res = LSb(lt.UpRightMasks[kpos] & Apieces);
             if ((bq & res) != 0) {
                 int pos = cb.idxs[(bq & res) % 67];
-                info.Add((pt.urBoard[kpos] ^ pt.urBoard[pos]) & rem_k, 0);
+                info.Add((lt.UpRightMasks[kpos] ^ lt.UpRightMasks[pos]) & rem_k, 0);
             }
         }
 
-        if ((pt.dlBoard[kpos] & bq) != 0) {
-            res = MSb(pt.dlBoard[kpos] & Apieces);
+        if ((lt.DownLeftMasks[kpos] & bq) != 0) {
+            res = MSb(lt.DownLeftMasks[kpos] & Apieces);
             if ((bq & res) != 0) {
                 int pos = cb.idxs[(bq & res) % 67];
-                info.Add((pt.dlBoard[kpos] ^ pt.dlBoard[pos]) & rem_k, 0);
+                info.Add((lt.DownLeftMasks[kpos] ^ lt.DownLeftMasks[pos]) & rem_k, 0);
             }
         }
 
-        if ((pt.ulBoard[kpos] & bq) != 0) {
-            res = LSb(pt.ulBoard[kpos] & Apieces);
+        if ((lt.UpLeftMasks[kpos] & bq) != 0) {
+            res = LSb(lt.UpLeftMasks[kpos] & Apieces);
             if ((bq & res) != 0) {
                 int pos = cb.idxs[(bq & res) % 67];
-                info.Add(pt.ulBoard[kpos] ^ pt.ulBoard[pos], 0);
+                info.Add(lt.UpLeftMasks[kpos] ^ lt.UpLeftMasks[pos], 0);
             }
         }
 
-        if ((pt.drBoard[kpos] & bq) != 0) {
-            res = MSb(pt.drBoard[kpos] & Apieces);
+        if ((lt.DownRightMasks[kpos] & bq) != 0) {
+            res = MSb(lt.DownRightMasks[kpos] & Apieces);
             if ((bq & res) != 0) {
                 int pos = cb.idxs[(bq & res) % 67];
-                info.Add(pt.drBoard[kpos] ^ pt.drBoard[pos], 0);
+                info.Add(lt.DownRightMasks[kpos] ^ lt.DownRightMasks[pos], 0);
             }
         }
 
-        res = pt.NtBoard[kpos] & cb.Pieces[ofs - 3 * color];
+        res = lt.KnightMasks[kpos] & cb.Pieces[ofs - 3 * color];
         if (res != 0) info.Add(0, res);
 
-        if (color == 1) res = pt.wpCboard[kpos] & cb.Pieces[6];
-        else if (color == -1) res = pt.bpCboard[kpos] & cb.Pieces[8];
+        if (color == 1) res = lt.wpCboard[kpos] & cb.Pieces[6];
+        else if (color == -1) res = lt.bpCboard[kpos] & cb.Pieces[8];
         if (res != 0) info.Add(0, res);
 
         return info;
     }
 
     public void KingMoves(ref ChessBoard cb, ref MoveList myMoves) {
-        ulong ans, Ksquares = pt.Kboard[kpos];
+        ulong ans, Ksquares = lt.KingMasks[kpos];
         ulong opd = Apieces | Attacked_Squares;
         ans = Ksquares ^ (Ksquares & (cb.Pieces[7 + 7 * color] | Attacked_Squares));
         if (color == 1 && ((1UL << kpos) & Attacked_Squares) == 0) {
@@ -866,4 +873,60 @@ public class MoveGenerator : MonoBehaviour {
 
     #endregion
 
+
+    public MoveList GenerateMoves(ref ChessBoard __pos)
+    {
+        MoveList move_list = new MoveList(__pos.pColor);
+        SetPiece(ref __pos);
+        GenerateAttackedSquares(ref __pos);
+        
+        KAinfo ka_info = FindKingAttackers(ref __pos);
+        move_list.pColor = __pos.pColor;
+        move_list.KingAttackers = ka_info.attackers;
+        
+        
+        if (ka_info.attackers == 0)
+            Ka_zero_pieceMovement(ref __pos, ref move_list);
+        if (ka_info.attackers == 1)
+            Ka_pieceMovement(ref __pos, ref move_list, ref ka_info);
+
+        KingMoves(ref __pos, ref move_list);
+        return move_list;
+    }
+
+
 }
+
+
+
+/*
+
+
+uint64_t
+bishop_atk_sq(int __pos, uint64_t _Ap)
+{
+    const auto area = [__pos, _Ap] (const uint64_t *table, const auto& __func)
+    { return table[__func(table[__pos] & _Ap)]; };
+
+    return plt::diag_Board[__pos] ^
+          (area(plt::ulBoard, lSb_idx) ^ area(plt::urBoard, lSb_idx)
+         ^ area(plt::dlBoard, mSb_idx) ^ area(plt::drBoard, mSb_idx));
+}
+
+uint64_t
+knight_atk_sq(int __pos, uint64_t _Ap)
+{ return plt::NtBoard[__pos] + (_Ap - _Ap); }
+
+uint64_t
+rook_atk_sq(int __pos, uint64_t _Ap)
+{
+    const auto area = [__pos, _Ap] (const uint64_t *table, const auto& __func)
+    { return table[__func(table[__pos] & _Ap)]; };
+
+    return plt::line_Board[__pos] ^
+          (area(plt::uBoard, lSb_idx) ^ area(plt::dBoard, mSb_idx)
+         ^ area(plt::rBoard, lSb_idx) ^ area(plt::lBoard, mSb_idx));
+}
+
+
+*/
