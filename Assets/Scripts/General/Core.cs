@@ -34,6 +34,37 @@ public class Core : MonoBehaviour
         }
     }
 
+    public int
+    Convert(float _x)
+    {
+        bool neg = false;
+        if (_x < 0) {
+            neg = true;
+            _x *= -1;
+        }
+
+        int res = (int)(_x + 0.5f);
+
+        if (neg) res *= -1;
+        return res;
+    }
+
+    public string
+    RemoveNonDigits(string text)
+    {
+        string result = string.Empty;
+        foreach (char ch in text)
+        {
+            if (char.IsDigit(ch))
+                result += ch;
+        }
+        return result;
+    }
+
+    #endregion
+
+    #region OpeningBook
+
     private void
     GetOpeningBook()
     {
@@ -82,21 +113,6 @@ public class Core : MonoBehaviour
 
         int random_index = Random.Range(0, moves.Count - 1);
         return moves[random_index];
-    }
-
-    public int
-    Convert(float _x)
-    {
-        bool neg = false;
-        if (_x < 0) {
-            neg = true;
-            _x *= -1;
-        }
-
-        int res = (int)(_x + 0.5f);
-
-        if (neg) res *= -1;
-        return res;
     }
 
     #endregion

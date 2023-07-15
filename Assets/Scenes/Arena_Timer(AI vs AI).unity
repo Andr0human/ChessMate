@@ -1069,7 +1069,7 @@ MonoBehaviour:
       m_Calls:
       - m_Target: {fileID: 1554426743}
         m_TargetAssemblyTypeName: Arena, Assembly-CSharp
-        m_MethodName: Set_sample_size
+        m_MethodName: SetSampleSize
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -1905,7 +1905,7 @@ MonoBehaviour:
       m_Calls:
       - m_Target: {fileID: 1554426743}
         m_TargetAssemblyTypeName: Arena, Assembly-CSharp
-        m_MethodName: Set_time_format
+        m_MethodName: SetTimeFormat
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}

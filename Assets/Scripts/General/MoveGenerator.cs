@@ -1,7 +1,7 @@
 using UnityEngine;
 
-public class MoveGenerator : MonoBehaviour {
-
+public class MoveGenerator : MonoBehaviour
+{
     public LookupTable lt = new LookupTable();
     private int kpos, ekpos, eps, color;
     private readonly int ofs = 7;
@@ -9,7 +9,8 @@ public class MoveGenerator : MonoBehaviour {
 
     #region Utility
 
-    public void SetPiece(ref ChessBoard cb) {
+    public void SetPiece(ref ChessBoard cb)
+    {
         color = cb.pColor;
         kpos = cb.idxs[cb.Pieces[ofs + 6 * color] % 67];
         ekpos = cb.idxs[cb.Pieces[ofs - 6 * color] % 67];
@@ -18,22 +19,25 @@ public class MoveGenerator : MonoBehaviour {
         Free_sq = ~Apieces;
     }
 
-    ulong LSb(ulong N) {
-        return N ^ (N & (N - 1));
-    }
+    ulong LSb(ulong N)
+    { return N ^ (N & (N - 1)); }
 
-    ulong MSb(ulong N) {
+    ulong MSb(ulong N)
+    {
         ulong res = 0;
-        while (N != 0) {
+        while (N != 0)
+        {
             res = N;
             N &= N - 1;
         }
         return res;
     }
 
-    public int PopCount(ulong N) {
+    public int PopCount(ulong N)
+    {
         int res = 0;
-        while (N != 0) {
+        while (N != 0)
+        {
             N &= N - 1;
             res++;
         }
@@ -41,7 +45,8 @@ public class MoveGenerator : MonoBehaviour {
     }
 
     private bool
-    En_passant_recheck(int ip, ref ChessBoard cb) {
+    EnPassantRecheck(int ip, ref ChessBoard cb)
+    {
         ulong erq = cb.Pieces[ofs - 5 * color] ^ cb.Pieces[ofs - 4 * color];
         ulong Ap = Apieces ^ (1UL << ip) ^ (1UL << (eps - 8 * color));
         ulong res = MSb(lt.LeftMasks[kpos] & Ap) | LSb(lt.RightMasks[kpos] & Ap);
@@ -257,13 +262,15 @@ public class MoveGenerator : MonoBehaviour {
 
     #region Attacking Squares
 
-    private ulong PawnAttkinSq(ref ChessBoard cb) {
+    private ulong PawnAttkinSq(ref ChessBoard cb)
+    {
         ulong Pwns = cb.Pieces[7 + color];
         if (color == 1) return ((Pwns & 0x7F7F7F7F7F7F00) << 9) | ((Pwns & 0xFEFEFEFEFEFE00) << 7);
         return ((Pwns & 0x7F7F7F7F7F7F00) >> 7) | ((Pwns & 0xFEFEFEFEFEFE00) >> 9);
     }
 
-    private ulong BishopAttkinSq(int idx, ref ChessBoard cb) {
+    private ulong BishopAttkinSq(int idx, ref ChessBoard cb)
+    {
         ulong res, ans = lt.UpRightMasks[idx] ^ lt.UpLeftMasks[idx] ^ lt.DownRightMasks[idx] ^ lt.DownLeftMasks[idx];
         res = lt.UpRightMasks[idx] & Apieces;
         if (res != 0) ans ^= lt.UpRightMasks[cb.idxs[LSb(res) % 67]];
@@ -276,11 +283,13 @@ public class MoveGenerator : MonoBehaviour {
         return ans;
     }
 
-    private ulong KnightAttkinSq(int idx) {
+    private ulong KnightAttkinSq(int idx)
+    {
         return lt.KnightMasks[idx];
     }
 
-    private ulong RookAttkinSq(int idx, ref ChessBoard cb) {
+    private ulong RookAttkinSq(int idx, ref ChessBoard cb)
+    {
         ulong res, ans = lt.RightMasks[idx] ^ lt.LeftMasks[idx] ^ lt.UpMasks[idx] ^ lt.DownMasks[idx];
         res = lt.RightMasks[idx] & Apieces;
         if (res != 0) ans ^= lt.RightMasks[cb.idxs[LSb(res) % 67]];
@@ -305,7 +314,7 @@ public class MoveGenerator : MonoBehaviour {
                 ans |= lt.wPboard[idx + 8];
             ans |= lt.wpCboard[idx] & cb.Pieces[ofs - 7 * color];
             if (eps != 64 && (lt.wpCboard[idx] & (1UL << eps)) != 0) {
-                if (En_passant_recheck(idx, ref cb)) ans |= lt.wpCboard[idx] & (1UL << eps);
+                if (EnPassantRecheck(idx, ref cb)) ans |= lt.wpCboard[idx] & (1UL << eps);
             }
             return ans;
         }
@@ -314,7 +323,7 @@ public class MoveGenerator : MonoBehaviour {
             ans |= lt.bPboard[idx - 8];
         ans |= lt.bpCboard[idx] & cb.Pieces[ofs - 7 * color];
         if (eps != 64 && (lt.bpCboard[idx] & (1UL << eps)) != 0) {
-            if (En_passant_recheck(idx, ref cb)) ans |= lt.bpCboard[idx] & (1UL << eps);
+            if (EnPassantRecheck(idx, ref cb)) ans |= lt.bpCboard[idx] & (1UL << eps);
         }
         return ans;
     }
@@ -893,8 +902,6 @@ public class MoveGenerator : MonoBehaviour {
         KingMoves(ref __pos, ref move_list);
         return move_list;
     }
-
-
 }
 
 

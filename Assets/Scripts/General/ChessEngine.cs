@@ -98,54 +98,39 @@ public class ChessEngine
     private void
     WriteInput(float alloted_time, int last_move)
     {
-        string commandline =
-            "movetime " + alloted_time.ToString("0.###") + " ";
+        using (FileStream inputFileStream = new FileStream(engine_input_path, FileMode.Create, FileAccess.Write, FileShare.Read))
+        using (StreamWriter inputFileWriter = new StreamWriter(inputFileStream))
+        {
+            string commandline = "time " + alloted_time.ToString("0.###") + " ";
 
-        if (last_move != 0)
-            commandline += "moves " + last_move.ToString() + " ";
-        
-        commandline += "go ";
+            if (last_move != 0)
+                commandline += "moves " + last_move.ToString() + " ";
 
-        File.WriteAllText(engine_input_path, commandline);
+            commandline += "go";
+
+            inputFileWriter.WriteLine(commandline);
+        }
     }
 
     private bool
     ReadOutput()
     {
-        // string result = File.ReadAllText(engine_output_path);
-
-        // if (result == "")
-        //     return false;
-
-        using (FileStream fileStream = new FileStream(engine_output_path,
-            FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-        using (StreamReader reader = new StreamReader(fileStream))
+        using (FileStream outputFileStream = new FileStream(engine_output_path, FileMode.Open, FileAccess.Read, FileShare.Write))
+        using (StreamReader outputFileReader = new StreamReader(outputFileStream))
         {
-            string line;
-            while ((line = reader.ReadLine()) != null)
-            {
-                // Process the line read from the file
-                UnityEngine.Debug.Log(line);
-                string[] values = line.Split();
+            string line = outputFileReader.ReadLine();
+            if (line == null) return false;
 
-                engine_move = int.Parse(values[0]);
-                engine_eval = float.Parse(values[1]);
+            string[] values = line.Split();
 
-                File.WriteAllText(engine_output_path, "");
-            }
+            engine_move = int.Parse(values[0]);
+            engine_eval = float.Parse(values[1]);
+
+            File.WriteAllText(engine_output_path, "");
+            return true;
         }
-
-
-        return true;
-
-        // string[] values = result.Split();
-
-        // engine_move = int.Parse(values[0]);
-        // engine_eval = float.Parse(values[1]);
-
-        // File.WriteAllText(engine_output_path, "");
-        // return true;
     }
+
 
     public IEnumerator
     ReadOutputCoroutine()
@@ -157,7 +142,13 @@ public class ChessEngine
     Stop()
     {
         if (!process.HasExited)
-            process.Kill();
+        {
+            process.CloseMainWindow();
+            process.WaitForExit();
+
+            process.Close();
+            process.Dispose();
+        }
 
         // Delete both input and output files along with their meta files
 

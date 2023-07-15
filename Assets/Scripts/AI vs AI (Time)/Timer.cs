@@ -7,6 +7,7 @@ public class Timer : MonoBehaviour
     public float clock_white = 100f, clock_black = 100f;
     public float increment_time = 2f;
     public bool white_tick, black_tick;
+
     [SerializeField] private TextMeshProUGUI white_time, black_time;
     [SerializeField] private Color high_time_color;
     [SerializeField] private Color med_time_color;
@@ -37,11 +38,13 @@ public class Timer : MonoBehaviour
     public void
     TextColorChange(ref TextMeshProUGUI __t, float value)
     {
-        if (value < 15f) {
+        if (value < 15f)
+        {
             __t.color = low_time_color;
             return;
         }
-        if (value < 45f) {
+        if (value < 45f)
+        {
             __t.color = med_time_color;
             return;
         }
@@ -55,14 +58,15 @@ public class Timer : MonoBehaviour
         black_tick = false;
         white_tick = false;
 
-        if (color == 1) white_tick = true;
+        if (color ==  1) white_tick = true;
         if (color == -1) black_tick = true;
     }
 
     public void
     SwitchPlayer()
     {
-        if (white_tick) {
+        if (white_tick)
+        {
             clock_white += increment_time;
             white_tick = false;
             black_tick = true;

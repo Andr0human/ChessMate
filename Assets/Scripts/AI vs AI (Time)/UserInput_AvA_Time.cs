@@ -21,5 +21,4 @@ public class UserInput_AvA_Time : MonoBehaviour
             return;
         }
     }
-
 }

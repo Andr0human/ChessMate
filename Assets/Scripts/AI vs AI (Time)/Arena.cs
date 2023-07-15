@@ -291,13 +291,10 @@ public class Arena : MonoBehaviour
             + "\nTotal --\n"               + PlayerEngine2.ShowTotal()
             + "\nScore -> "                + PlayerEngine2.Score().ToString()
             + "\n\nPrediction Acc. -> "    + prediction_success.ToString()
-            + " / " + prediction_attempt.ToString() + "\n"
-        );
-
-        File.AppendAllText(path,
-            PlayerEngine1.name() + " losses in time : " + PlayerEngine1.games_loss_on_time().ToString() +
-            PlayerEngine2.name() + " losses in time : " + PlayerEngine2.games_loss_on_time().ToString() +
-            "\nAvg. Game Time : " + ((float)sw.Elapsed.TotalSeconds / game_num).ToString() + " sec."
+            + " / " + prediction_attempt.ToString() + "\n" +
+            PlayerEngine1.name() + " losses in time : " + PlayerEngine1.games_loss_on_time().ToString() + "\n" +
+            PlayerEngine2.name() + " losses in time : " + PlayerEngine2.games_loss_on_time().ToString() + "\n" +
+            "Avg. Game Time : " + ((float)sw.Elapsed.TotalSeconds / game_num).ToString() + " sec."
         );
     }
 
@@ -408,22 +405,36 @@ public class Arena : MonoBehaviour
         Est_time_text.text = "Est. Time Left : " + PrintTime(est_time);
     }
 
-    public void SetSampleSize() {
+    public void
+    SetSampleSize()
+    {
         string text = Game_field.text;
+        text = cs.RemoveNonDigits(text);
+
         games_to_be_played = int.Parse(text);
     }
 
-    public void SetTimeFormat()
+    public void
+    SetTimeFormat()
     {
-        string[] array = Time_field.text.Split();
-        int x = 60, y = 0;
-        if (array.Length == 0) return;
-        if (array.Length >= 1) x = int.Parse(array[0]);
-        if (array.Length >= 2) y = int.Parse(array[1]);
-        FindObjectOfType<Timer>().SetTime(x, y);
+        string[] values = Time_field.text.Split();
+
+        int time_per_side = 60, increment = 0;
+
+        if (values.Length == 0)
+            return;
+
+        if (values.Length >= 1)
+            time_per_side = int.Parse(cs.RemoveNonDigits(values[0]));
+
+        if (values.Length >= 2)
+            increment = int.Parse(cs.RemoveNonDigits(values[1]));
+
+        FindObjectOfType<Timer>().SetTime(time_per_side, increment);
     }
 
-    public void InitializeArena()
+    public void
+    InitializeArena()
     {
         GameObject.Find("Game Amount").SetActive(false);
         GameObject.Find("Time Format").SetActive(false);
@@ -438,6 +449,5 @@ public class Arena : MonoBehaviour
         sw.Start();
         NextGame();
     }
-
 }
 
