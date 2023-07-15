@@ -50,12 +50,12 @@ public class Core : MonoBehaviour
     }
 
     public string
-    RemoveNonDigits(string text)
+    RemoveNonAlphaNumeric(string text)
     {
         string result = string.Empty;
         foreach (char ch in text)
         {
-            if (char.IsDigit(ch))
+            if (char.IsLetterOrDigit(ch) || (ch == '_') || (ch == '-'))
                 result += ch;
         }
         return result;

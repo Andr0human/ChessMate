@@ -8,7 +8,7 @@ using UnityEngine;
 class PlayerData
 {
     string engine_name;
-    // [Game_number % 2] in which the player is white
+    // [CurrentGameNum % 2] in which the player is white
     int my_white;
 
     int wins_with_white, loss_with_white, draws_with_white;
@@ -204,33 +204,42 @@ public class Arena : MonoBehaviour
 {
     public Engine_AvA_Time ce;
     [SerializeField] Core cs;
-    [SerializeField] private int games_to_be_played = 10;
-    private int game_num = 1;
-    private int prediction_attempt, prediction_success;
 
-    public TextMeshProUGUI Game_field, Time_field;
-    public TextMeshProUGUI curr_game_text, Est_time_text;
+    [SerializeField] private int GamesToPlay = 10;
 
-    PlayerData PlayerEngine1;
-    PlayerData PlayerEngine2;
+    private int CurrentGameNum = 1;
+    private int PredictionAttempt, PredictionSuccess;
 
-    ScoreSheet sheet;
-    PgnData extra_pgn;
+    public TextMeshProUGUI GameAmountField;
+    public TextMeshProUGUI TimeFormatField;
+    public TextMeshProUGUI EngineNameField;
+
+    public string ArenaEngine1;
+    public string ArenaEngine2;
+
+    public TextMeshProUGUI CurrentGameNumText;
+    public TextMeshProUGUI EstimateTimeText;
+
+    [SerializeField] private PlayerData PlayerEngine1;
+    [SerializeField] private PlayerData PlayerEngine2;
+
+    private ScoreSheet sheet;
+    private PgnData extra_pgn;
 
     Stopwatch sw = new Stopwatch();
-    List<int> RandomOpening;
+    private List<int> RandomOpening;
 
     public void
     NextGame()
     {
-        if (game_num > games_to_be_played)
+        if (CurrentGameNum > GamesToPlay)
         {
             ArenaOver();
             return;
         }
 
-        curr_game_text.text = "Game Number : " + game_num.ToString();
-        if (game_num % 2 == 1)
+        CurrentGameNumText.text = "Game Number : " + CurrentGameNum.ToString();
+        if (CurrentGameNum % 2 == 1)
         {
             RandomOpening = FindObjectOfType<BookMaker>().GetRandomOpening();
             ce.StartNewGame(PlayerEngine1.name(), PlayerEngine2.name(), RandomOpening);
@@ -244,42 +253,43 @@ public class Arena : MonoBehaviour
     public void
     EndingReached(int game_res, int state, int p_res)
     {
-        PlayerEngine1.AddEntry(game_num, game_res, state);
-        PlayerEngine2.AddEntry(game_num, game_res, state);
+        PlayerEngine1.AddEntry(CurrentGameNum, game_res, state);
+        PlayerEngine2.AddEntry(CurrentGameNum, game_res, state);
 
-        sheet.Add(PlayerEngine1.Score(), PlayerEngine2.Score(), game_num, game_res);
+        sheet.Add(PlayerEngine1.Score(), PlayerEngine2.Score(), CurrentGameNum, game_res);
 
         if (p_res != 0)
         {
-            prediction_attempt++;
-            if (p_res == game_res) prediction_success++;
+            PredictionAttempt++;
+            if (p_res == game_res) PredictionSuccess++;
         }
         int res = IsInterestingGame(p_res, game_res);
         PrintInterestingGame(res, game_res);
         DisplayEstimatedTime();
-        if (game_num != 0 && game_num % 2 == 0) {
+        if ((CurrentGameNum != 0) && (CurrentGameNum % 2 == 0)) {
             PrintArenaResult();
             sheet.PrintScoreSheet();
         }
-        game_num++;
+        CurrentGameNum++;
         StartCoroutine(SpendTime());
     }
 
     private void
     ArenaOver()
     {
-        curr_game_text.text = "Games completed!";
+        CurrentGameNumText.text = "Games completed!";
         sw.Stop();
         PrintArenaResult();
     }
 
     private void
-    PrintArenaResult() {
-        string path = Application.streamingAssetsPath + "/arena/log.txt";
+    PrintArenaResult()
+    {
+        string path = Application.streamingAssetsPath + "/arena/results.txt";
 
         File.WriteAllText(path,
             "####     Arena INFO    #####\n" +
-            "Games played : " + games_to_be_played.ToString()
+            "Games played : " + GamesToPlay.ToString()
             + "\n\n" + PlayerEngine1.name() + " Stats :"
             + "\nPlaying with White -- \n" + PlayerEngine1.ShowWhite()
             + "\nPlaying with Black -- \n" + PlayerEngine1.ShowBlack()
@@ -290,17 +300,18 @@ public class Arena : MonoBehaviour
             + "\nPlaying with Black -- \n" + PlayerEngine2.ShowBlack()
             + "\nTotal --\n"               + PlayerEngine2.ShowTotal()
             + "\nScore -> "                + PlayerEngine2.Score().ToString()
-            + "\n\nPrediction Acc. -> "    + prediction_success.ToString()
-            + " / " + prediction_attempt.ToString() + "\n" +
+            + "\n\nPrediction Acc. -> "    + PredictionSuccess.ToString()
+            + " / " + PredictionAttempt.ToString() + "\n" +
             PlayerEngine1.name() + " losses in time : " + PlayerEngine1.games_loss_on_time().ToString() + "\n" +
             PlayerEngine2.name() + " losses in time : " + PlayerEngine2.games_loss_on_time().ToString() + "\n" +
-            "Avg. Game Time : " + ((float)sw.Elapsed.TotalSeconds / game_num).ToString() + " sec."
+            "Avg. Game Time : " + ((float)sw.Elapsed.TotalSeconds / CurrentGameNum).ToString() + " sec."
         );
     }
 
     private int
-    IsInterestingGame(int _pr, int game_res) {
-        // A Game is Interesting if :
+    IsInterestingGame(int _pr, int game_res)
+    {
+        // A Game is Interesting if
 
         // Win-Loss Prediction Failed
         if (_pr != 0 && Mathf.Abs(_pr) == 1 && _pr != game_res) return 1;
@@ -317,7 +328,7 @@ public class Arena : MonoBehaviour
         if (ce.primary.PositionWeight() > weight_cutoff) return 4;
 
         // If is one of first six games
-        if (game_num <= 4) return 0;
+        if (CurrentGameNum <= 4) return 0;
 
         return -1;
     }
@@ -334,7 +345,7 @@ public class Arena : MonoBehaviour
         else if (_res == 3) status = "(Diff Evals)";
         else if (_res == 4) status = "(Huge Material)";
 
-        string number = game_num.ToString();
+        string number = CurrentGameNum.ToString();
         string path1 = Application.streamingAssetsPath + "/arena/Games/game" + number + " " + status + ".pgn";
         string path2 = Application.streamingAssetsPath + "/arena/Evals/Eval" + number + " " + status + ".txt";
         string path3 = Application.streamingAssetsPath + "/arena/Time/Time" + number + " " + status + ".txt";
@@ -345,7 +356,7 @@ public class Arena : MonoBehaviour
 
         // Printing PGN to a new File
 
-        extra_pgn.CreateEntry(game_num, game_res);
+        extra_pgn.CreateEntry(CurrentGameNum, game_res);
         extra_pgn.Print(status);
         for (int i = 0; i < moveList.Count; i++) {
             int x = moveList[i].x, y = moveList[i].y;
@@ -400,24 +411,28 @@ public class Arena : MonoBehaviour
     private void
     DisplayEstimatedTime()
     {
-        double num = sw.Elapsed.TotalSeconds / game_num;
-        double est_time = num * (games_to_be_played - game_num);
-        Est_time_text.text = "Est. Time Left : " + PrintTime(est_time);
+        double num = sw.Elapsed.TotalSeconds / CurrentGameNum;
+        double est_time = num * (GamesToPlay - CurrentGameNum);
+        EstimateTimeText.text = "Est. Time Left : " + PrintTime(est_time);
     }
 
     public void
     SetSampleSize()
     {
-        string text = Game_field.text;
-        text = cs.RemoveNonDigits(text);
+        string text = GameAmountField.text;
+        text = cs.RemoveNonAlphaNumeric(text);
 
-        games_to_be_played = int.Parse(text);
+        if (text.Length == 0)
+            return;
+
+        text = cs.RemoveNonAlphaNumeric(text);
+        GamesToPlay = int.Parse(text);
     }
 
     public void
     SetTimeFormat()
     {
-        string[] values = Time_field.text.Split();
+        string[] values = TimeFormatField.text.Split();
 
         int time_per_side = 60, increment = 0;
 
@@ -425,12 +440,24 @@ public class Arena : MonoBehaviour
             return;
 
         if (values.Length >= 1)
-            time_per_side = int.Parse(cs.RemoveNonDigits(values[0]));
+            time_per_side = int.Parse(cs.RemoveNonAlphaNumeric( values[0] ));
 
         if (values.Length >= 2)
-            increment = int.Parse(cs.RemoveNonDigits(values[1]));
+            increment = int.Parse(cs.RemoveNonAlphaNumeric( values[1] ));
 
         FindObjectOfType<Timer>().SetTime(time_per_side, increment);
+    }
+
+    public void
+    SetEngines()
+    {
+        string[] names = EngineNameField.text.Split();
+
+        if (names.Length < 2)
+            return;
+        
+        ArenaEngine1 = cs.RemoveNonAlphaNumeric( names[0] );
+        ArenaEngine2 = cs.RemoveNonAlphaNumeric( names[1] );
     }
 
     public void
@@ -439,11 +466,11 @@ public class Arena : MonoBehaviour
         GameObject.Find("Game Amount").SetActive(false);
         GameObject.Find("Time Format").SetActive(false);
 
-        PlayerEngine1 = new PlayerData("elsa_v1", 1);
-        PlayerEngine2 = new PlayerData("elsa_v2", 0);
+        PlayerEngine1 = new PlayerData(ArenaEngine1, 1);
+        PlayerEngine2 = new PlayerData(ArenaEngine2, 0);
 
-        sheet =  new ScoreSheet(PlayerEngine1.name(), PlayerEngine2.name());
-        extra_pgn = new PgnData(PlayerEngine1.name(), PlayerEngine2.name());
+        sheet =  new ScoreSheet(ArenaEngine1, ArenaEngine2);
+        extra_pgn = new PgnData(ArenaEngine1, ArenaEngine2);
 
         sw.Reset();
         sw.Start();
