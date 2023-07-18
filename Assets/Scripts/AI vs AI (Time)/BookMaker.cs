@@ -46,7 +46,7 @@ public class BookMaker : MonoBehaviour
                 mCount++;
             }
 
-            string pos = primary.FenGenerator();
+            string pos = primary.Fen();
 
             if (!hashSet.Contains(pos))
             {

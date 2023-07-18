@@ -325,7 +325,7 @@ public class Arena : MonoBehaviour
 
         // Game ended with huge material on board
         int weight_cutoff = 4800;
-        if (ce.primary.PositionWeight() > weight_cutoff) return 4;
+        if (ce.BoardPosition.PositionWeight() > weight_cutoff) return 4;
 
         // If is one of first six games
         if (CurrentGameNum <= 4) return 0;
@@ -350,7 +350,7 @@ public class Arena : MonoBehaviour
         string path2 = Application.streamingAssetsPath + "/arena/Evals/Eval" + number + " " + status + ".txt";
         string path3 = Application.streamingAssetsPath + "/arena/Time/Time" + number + " " + status + ".txt";
 
-        List<Vector2Int> moveList = ce.game_pgn.GetPgn();
+        List<Vector2Int> moveList = ce.GamePgn.GetPgn();
         ChessBoard tmp_board = new ChessBoard();
         tmp_board.LoadFromFEN(cs.StartPosition);
 
@@ -375,13 +375,13 @@ public class Arena : MonoBehaviour
         }
 
         // Printing Evaluations to a new File
-        List<Vector2> data = ce.game_pgn.GetEval();
+        List<Vector2> data = ce.GamePgn.GetEval();
         File.WriteAllText(path2, "");
         foreach (Vector2 eval in data)
             File.AppendAllText(path2, eval.x.ToString() + " " + eval.y.ToString() + "\n");
 
         // Printing Time_left List to a new File
-        data = ce.game_pgn.GetTime();
+        data = ce.GamePgn.GetTime();
         File.WriteAllText(path3, "");
         foreach (Vector2 t_time in data)
             File.AppendAllText(path3, t_time.x.ToString() + " " + t_time.y.ToString() + "\n");
@@ -425,7 +425,6 @@ public class Arena : MonoBehaviour
         if (text.Length == 0)
             return;
 
-        text = cs.RemoveNonAlphaNumeric(text);
         GamesToPlay = int.Parse(text);
     }
 
@@ -434,16 +433,16 @@ public class Arena : MonoBehaviour
     {
         string[] values = TimeFormatField.text.Split();
 
-        int time_per_side = 60, increment = 0;
+        float time_per_side = 60, increment = 0;
 
         if (values.Length == 0)
             return;
 
         if (values.Length >= 1)
-            time_per_side = int.Parse(cs.RemoveNonAlphaNumeric( values[0] ));
+            time_per_side = float.Parse(cs.RemoveNonAlphaNumeric( values[0] ));
 
         if (values.Length >= 2)
-            increment = int.Parse(cs.RemoveNonAlphaNumeric( values[1] ));
+            increment = float.Parse(cs.RemoveNonAlphaNumeric( values[1] ));
 
         FindObjectOfType<Timer>().SetTime(time_per_side, increment);
     }
@@ -465,6 +464,7 @@ public class Arena : MonoBehaviour
     {
         GameObject.Find("Game Amount").SetActive(false);
         GameObject.Find("Time Format").SetActive(false);
+        GameObject.Find("Engine Names").SetActive(false);
 
         PlayerEngine1 = new PlayerData(ArenaEngine1, 1);
         PlayerEngine2 = new PlayerData(ArenaEngine2, 0);

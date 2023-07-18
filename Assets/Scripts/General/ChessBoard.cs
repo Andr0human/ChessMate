@@ -278,7 +278,7 @@ public class ChessBoard
     }
 
     public string
-    FenGenerator()
+    Fen()
     {
         System.Func<int, string> PieceToChar = (int __p) => {
             int piece = __p >= 0 ? __p : -__p;

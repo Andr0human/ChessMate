@@ -55,7 +55,7 @@ public class Core : MonoBehaviour
         string result = string.Empty;
         foreach (char ch in text)
         {
-            if (char.IsLetterOrDigit(ch) || (ch == '_') || (ch == '-'))
+            if (char.IsLetterOrDigit(ch) || (ch == '_') || (ch == '-') || (ch == '.'))
                 result += ch;
         }
         return result;

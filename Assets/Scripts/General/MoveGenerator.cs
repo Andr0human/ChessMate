@@ -57,7 +57,7 @@ public class MoveGenerator : MonoBehaviour
     public string
     PrintMove(int move, ref ChessBoard __b)
     {
-        string IndexToRow(int __x) => (__x + 49).ToString();
+        // string IndexToRow(int __x) => (__x + 49).ToString();
         string IndexToCol(int __y) => (__y + 97).ToString();
         // string IndexToSquare(int __x, int __y) => IndexToCol(__y) + IndexToRow(__x);
 
@@ -744,7 +744,8 @@ public class MoveGenerator : MonoBehaviour
         return false;
     }
 
-    public void GenerateAttackedSquares(ref ChessBoard cb) {
+    public void GenerateAttackedSquares(ref ChessBoard cb)
+    {
         ulong ans = 0, tmp, val;
         color *= -1;
         Apieces ^= 1UL << kpos;
@@ -780,7 +781,8 @@ public class MoveGenerator : MonoBehaviour
         return;
     }
 
-    public KAinfo FindKingAttackers(ref ChessBoard cb) {
+    public KAinfo FindKingAttackers(ref ChessBoard cb)
+    {
         KAinfo info = new KAinfo();
         if (((1UL << kpos) & Attacked_Squares) == 0) return info;
         ulong res, rem_k = ~(1UL << (kpos));
@@ -860,7 +862,8 @@ public class MoveGenerator : MonoBehaviour
         return info;
     }
 
-    public void KingMoves(ref ChessBoard cb, ref MoveList myMoves) {
+    public void KingMoves(ref ChessBoard cb, ref MoveList myMoves)
+    {
         ulong ans, Ksquares = lt.KingMasks[kpos];
         ulong opd = Apieces | Attacked_Squares;
         ans = Ksquares ^ (Ksquares & (cb.Pieces[7 + 7 * color] | Attacked_Squares));
