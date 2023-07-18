@@ -3,33 +3,35 @@ using System.Collections.Generic;
 using UnityEngine;
 
 
-public class Engine_AvA_Time : MonoBehaviour {
-
+public class Engine_AvA_Time : MonoBehaviour
+{
     #region Variables
 
     public Core cs;
 
-    [SerializeField] private BoardHandler bh;
-    [SerializeField] private Timer tmr;
+    [SerializeField] private BoardHandler  bh;
+    [SerializeField] private        Timer tmr;
 
-    private ChessEngine engine_white;
-    private ChessEngine engine_black;
+    /* private ChessEngine engine_white;
+    private ChessEngine engine_black; */
 
-    public ChessBoard primary = new ChessBoard();
-    public MoveList vMoves;
-    public PGN game_pgn;
+    private ChessEngine[]   Engines;
+    private           int Side2Move;
 
-    private char elsa_color;
-    private List<ulong> occured_positions;
-    private int bot_move, drawCounter = 0;
+    public ChessBoard    BoardPosition;
+    public   MoveList MovesForPosition;
+    public        Pgn          GamePgn;
 
-    // For Debugging
-    private float bot_eval;
-    [SerializeField] private bool can_adjourn = false;      // For Ending Games Sooner
-    [SerializeField] private bool random_openings = false;
-    // [0 -> No pred. made, 1 -> White will win, -1 -> Black will win, 2 -> Game will end in draw]
-    public int prediction_result;                           // For Testing Purpose
-    private readonly float margin_eval = 5.0f;
+    private   int BotMove;
+    private float BotEval;
+
+    [SerializeField] private  bool      RandomOpenings = false;
+    [SerializeField] private  bool          CanAdjourn = false;
+    [SerializeField] private float WinMarginForAdjourn =  5.0f;
+    [SerializeField] private  bool UseFixedTimePerMove = false;
+
+    private List<ulong> OccuredPositions;
+
 
     #endregion
 
@@ -38,13 +40,14 @@ public class Engine_AvA_Time : MonoBehaviour {
     private void
     Start()
     {
-        game_pgn = new PGN();
-        occured_positions = new List<ulong>();
-
         cs.Init();
-        primary.LoadFromFEN(cs.StartPosition);
-        vMoves = new MoveList();
-        bh.InitializeBoard(ref primary);
+
+        BoardPosition    = new ChessBoard();
+        MovesForPosition = new MoveList();
+        GamePgn          = new Pgn();
+        OccuredPositions = new List<ulong>();
+
+        bh.InitializeBoard(ref BoardPosition);
         GetMoves();
     }
 
@@ -53,22 +56,15 @@ public class Engine_AvA_Time : MonoBehaviour {
     {
         int pt = (__move >> 12) & 7, cpt = (__move >> 15) & 7;
         if (pt == 1 || cpt != 0)
-            occured_positions.Clear();
-        occured_positions.Add(key);
-    }
-
-    public void
-    GetBotmove(int __m, double __e)
-    {
-        bot_move = __m;
-        bot_eval = (float)__e;
+            OccuredPositions.Clear();
+        OccuredPositions.Add(key);
     }
 
     public int
     DifferentEvals(float margin)
     {
         int res = 0;
-        List<Vector2> evaluations = game_pgn.GetEval();
+        List<Vector2> evaluations = GamePgn.GetEval();
         foreach (Vector2 eval in evaluations)
         {
             float white = Mathf.Abs(eval.x);
@@ -83,24 +79,21 @@ public class Engine_AvA_Time : MonoBehaviour {
 
     #region Prediction & GameOver
 
-    private void
+    private int
     PredictionCall()
     {
-        if (prediction_result != 0 || primary.pColor == 1) return;
+        if (BoardPosition.pColor == 1) return 0;
 
-        Vector2 eval = game_pgn.LastOfEval();
+        Vector2 eval = GamePgn.LastOfEval();
 
-        if (eval.x > margin_eval && eval.y > margin_eval)
-            prediction_result = 1;
-        else if (eval.x < -margin_eval && eval.y < -margin_eval)
-            prediction_result = -1;
-        else {
-            if (Mathf.Abs(eval.x) < 0.25f && Mathf.Abs(eval.y) < 0.25f)
-                drawCounter++;
-            else
-                drawCounter = 0;
-            if (drawCounter > 30) prediction_result = 2;
-        }
+        if (Mathf.Min(eval.x, eval.y) >  WinMarginForAdjourn)             // Both bots thinks white is winning
+            return 1;
+        if (Mathf.Min(eval.x, eval.y) < -WinMarginForAdjourn)             // Both bots thinks black is winning
+            return -1;
+        if (GamePgn.DrawCounter(0.25f) > 30)
+            return 2;
+
+        return 0;
     }
 
     private int
@@ -119,29 +112,35 @@ public class Engine_AvA_Time : MonoBehaviour {
          *  8 -> Black won on time
         ***/
 
-        if (vMoves.moveCount == 0)
+        if (MovesForPosition.moveCount == 0)
         {
             // Check for checkmate/stalemate
-            if (vMoves.KingAttackers > 0)
-                return primary.pColor == 1 ? 2 : 1;
+            if (MovesForPosition.KingAttackers > 0)
+                return BoardPosition.pColor == 1 ? 2 : 1;
             return 3;
         }
 
-        if (cs.InsufficientMaterial(primary)) return 4;     // Check for insufficient material
-        if (occured_positions.Count >= 100) return 6;       // Check for 50-move rule
+        // Check for insufficient material
+        if (cs.InsufficientMaterial(BoardPosition)) return 4;
 
-        if (occured_positions.Count > 0)
+        // Check for 50-move rule
+        if (OccuredPositions.Count >= 100) return 6;
+
+        if (OccuredPositions.Count > 0)
         {
             // Check for 3-fold repetition
-            int cnt = 0, last = occured_positions.Count - 1;
-            ulong curr_pos = occured_positions[last];
-            foreach (ulong pos in occured_positions)
+            int cnt = 0, last = OccuredPositions.Count - 1;
+            ulong curr_pos = OccuredPositions[last];
+            foreach (ulong pos in OccuredPositions)
                 if (pos == curr_pos) cnt++;
             if (cnt >= 3) return 5;
         }
 
-        if (tmr.clock_black <= 0) return 7;                 // Black lost on time
-        if (tmr.clock_white <= 0) return 8;                 // White lost on time
+        // Black lost on time
+        if (tmr.ChessClocks[1] <= 0) return 7;
+        
+        // White lost on time                 
+        if (tmr.ChessClocks[0] <= 0) return 8;
 
         return -1;
     }
@@ -149,8 +148,8 @@ public class Engine_AvA_Time : MonoBehaviour {
     private void
     GameEnded(int state, int _pr)
     {
-        engine_white.Stop();
-        engine_black.Stop();
+        Engines[0].Stop();
+        Engines[1].Stop();
 
         int game_res = 2;
         if (state == 1 || state == 7) game_res = 1;                     // White won
@@ -161,8 +160,8 @@ public class Engine_AvA_Time : MonoBehaviour {
     private void
     GameAdjourned(int predict_res)
     {
-        engine_white.Stop();
-        engine_black.Stop();
+        Engines[0].Stop();
+        Engines[1].Stop();
 
         FindObjectOfType<Arena>().EndingReached(predict_res, predict_res, 0);
     }
@@ -170,142 +169,150 @@ public class Engine_AvA_Time : MonoBehaviour {
     public void
     StartNewGame(string __engine_white, string __engine_black, List<int> opening)
     {
-        prediction_result = drawCounter = 0;                    // Reset prev prediction & drawCounter
+        GamePgn.ClearList();
+        OccuredPositions.Clear();
+        BoardPosition.LoadFromFEN(cs.StartPosition);
 
-        game_pgn.ClearList();                                   // Clear last match pgn
-        occured_positions.Clear();                              // Clear occured pos from last game
-        primary.LoadFromFEN(cs.StartPosition);                  // Load Starting pos. to chessBoard class
-
-        if (random_openings)
+        if (RandomOpenings)
         {
             StartCoroutine(PlayOpening(__engine_white, __engine_black, opening));
         }
         else
         {
             // Initial both engines
-            engine_white = new ChessEngine(__engine_white, primary.FenGenerator(), false, false);
-            engine_black = new ChessEngine(__engine_black, primary.FenGenerator(), false, false);
+            /* engine_white = new ChessEngine(__engine_white, BoardPosition.Fen(), false, false);
+            engine_black = new ChessEngine(__engine_black, BoardPosition.Fen(), false, false); */
+            
+            // 0 (white), 1 (black)
+            Side2Move = 0;
 
-            vMoves = cs.mg.GenerateMoves(ref primary);          // Generate all legal moves in current pos.
-            tmr.ClockReset(primary.pColor);                     // Reset clock for next match
+            // Initial both engines
+            Engines[0] = new ChessEngine(__engine_white, BoardPosition.Fen(), UseFixedTimePerMove, false);
+            Engines[1] = new ChessEngine(__engine_black, BoardPosition.Fen(), UseFixedTimePerMove, false);
 
-            StartCoroutine(BotInput());                         // Ready to request moves from bots
+            MovesForPosition = cs.mg.GenerateMoves(ref BoardPosition);
+
+            // Reset clock for next match
+            tmr.ClockReset(BoardPosition.pColor);
+
+            // Ready to request moves from bots
+            StartCoroutine(BotInput());
         }
     }
 
     private IEnumerator
     PlayOpening(string __engine_white, string __engine_black, List<int> opening)
     {
-        float time_left = tmr.GetAllotedTime();
+        // Play all moves from the opening_book
         foreach (int move in opening)
         {
-            game_pgn.Add(primary.pColor, move, 0, time_left, false);
-            primary.MakeMove(move);
-            AddToTable(primary.GenerateHashKey(ref cs.HashIndex), move);
-            bh.Recreate(ref primary);
+            GamePgn.Add(BoardPosition.pColor, move, 0, tmr.GetAllotedTime(), false);
+            BoardPosition.MakeMove(move);
+            AddToTable(BoardPosition.GenerateHashKey(ref cs.HashIndex), move);
+            bh.Recreate(ref BoardPosition);
             yield return new WaitForSeconds(0.1f);
         }
 
-        string tmp_fen = primary.FenGenerator();
-
         // Initial both engines
-        engine_white = new ChessEngine(__engine_white, primary.FenGenerator(), tmr);
-        engine_black = new ChessEngine(__engine_black, primary.FenGenerator(), tmr);
+        Engines[0] = new ChessEngine(__engine_white, BoardPosition.Fen(), UseFixedTimePerMove, false);
+        Engines[1] = new ChessEngine(__engine_black, BoardPosition.Fen(), UseFixedTimePerMove, false);
 
-        vMoves = cs.mg.GenerateMoves(ref primary);                 // Generate all legal moves in current pos.
-        tmr.ClockReset(primary.pColor);                        // Reset clock for next match
+        MovesForPosition = cs.mg.GenerateMoves(ref BoardPosition);
 
-        StartCoroutine(BotInput());                             // Ready to request moves from bots
+        // Reset clock for next match
+        tmr.ClockReset(BoardPosition.pColor);
+
+        // Ready to request moves from bots
+        StartCoroutine(BotInput());
     }
 
     #endregion
 
     #region GamePlay
 
-    private void
+    /* private void
     ReceiveMove()
     {
-        if (primary.pColor == 1)
-            (bot_move, bot_eval) = (engine_white.engine_move, engine_white.engine_eval);
+        if (BoardPosition.pColor == 1)
+            (BotMove, BotEval) = (engine_white.engine_move, engine_white.engine_eval);
         else
-            (bot_move, bot_eval) = (engine_black.engine_move, engine_black.engine_eval);
-    }
+            (BotMove, BotEval) = (engine_black.engine_move, engine_black.engine_eval);
+        
+        (BotMove, BotEval) = (Engines[Side2Move].EngineMove, Engines[Side2Move].EngineEval)
+    } */
 
     private int
     GetMoves()
     {
-        vMoves = cs.mg.GenerateMoves(ref primary);      // Generate & store all legal moves in current pos.
-        int state = IsGameOver();                       // Check if the game is Over
+        // Generate & store all legal moves in current pos.
+        MovesForPosition = cs.mg.GenerateMoves(ref BoardPosition);
+
+        // Check if the game is Over
+        int state = IsGameOver();
         return state;
     }
 
     private IEnumerator
     BotInput()
     {
-        if (primary.pColor == 1)
-        {
-            engine_white.Play(ref primary, game_pgn.GetLastMove());
+        Engines[Side2Move].Play(ref BoardPosition, GamePgn.GetLastMove());
 
-            StartCoroutine(engine_white.ReadOutputCoroutine());
-            yield return new WaitUntil(() => engine_white.engine_move != 0);
-        }
-        else
-        {
-            engine_black.Play(ref primary, game_pgn.GetLastMove());
+        StartCoroutine(Engines[Side2Move].ReadOutputCoroutine());
+        yield return new WaitUntil(() => Engines[Side2Move].EngineMove != 0);
 
-            StartCoroutine(engine_black.ReadOutputCoroutine());
-            yield return new WaitUntil(() => engine_black.engine_move != 0);
-        }
-        ReceiveMove();
-        ValidateNonNullMove();                      // Validate the move played
-    }
-
-    public void
-    ValidateNonNullMove()
-    {
-        if (bot_move == 0) return;
-        NextTurn(bot_move);
+        NextTurn(Engines[Side2Move].EngineMove, Engines[Side2Move].EngineEval);
     }
 
     private void
-    NextTurn(int move)
+    NextTurn(int move, float eval)
     {
+        // Switch side to play
+        tmr.SwitchPlayer();
 
-        UnityEngine.Debug.Log("In Next Turn");
-        UnityEngine.Debug.Log("Last Move => " + bot_move + " | " + bot_eval);
-
-        tmr.SwitchPlayer();                        // Switch side to play
-        tmr.ClockFreeze();                         // Freeze the clocks
+        // Freeze the clocks
+        tmr.ClockFreeze();
 
         // Store move, time_left & evaluation
-        float time_left = primary.pColor == 1 ? tmr.clock_white : tmr.clock_black;
-        game_pgn.Add(primary.pColor, bot_move, bot_eval, time_left);
 
-        PredictionCall();                          // Take a prediction of results
+        int __side = -((BoardPosition.pColor - 1) / 2);
+        float time_left = tmr.ChessClocks[__side];
 
-        primary.MakeMove(move);                     // Make Move on board
-        AddToTable(primary.GenerateHashKey(ref cs.HashIndex), move);   // Add to occured pos. Table
+        GamePgn.Add(BoardPosition.pColor, move, eval, time_left);
 
-        bh.BoardReset(false);                       // Reset Physical Board
-        bh.MarkPlayedMove(move);                    // Mark the move played on board
-        bh.Recreate(ref primary);                   // Create the new position on physical board
+        int prediction = PredictionCall();
 
-        vMoves = cs.mg.GenerateMoves(ref primary);     // Generate & store all legal moves in current pos.
-        int state = IsGameOver();                 // Check if the game is Over
+        BoardPosition.MakeMove(move);
+        Side2Move ^= 1;
 
-        if (state != -1) {
+        // Add to occured pos. Table    
+        AddToTable(BoardPosition.GenerateHashKey(ref cs.HashIndex), move);
+
+        // Reset Physical Board
+        bh.BoardReset(false);
+        // Mark the move played on board                                        
+        bh.MarkPlayedMove(move);
+        // Create the new position on physical board
+        bh.Recreate(ref BoardPosition);
+
+
+        MovesForPosition = cs.mg.GenerateMoves(ref BoardPosition);
+        int game_state = IsGameOver();
+
+        if (game_state != -1)
+        {
             // Someone has lost, immediately cut the game
-            GameEnded(state, prediction_result);
+            GameEnded(game_state, prediction);
         }
-        else if (can_adjourn && prediction_result != 0) {
+        else if (CanAdjourn && prediction != 0)
+        {
             // Allowed to adjourn the game if a prediction has been made
-            GameAdjourned(prediction_result);
+            GameAdjourned(prediction);
         }
-        else {
+        else
+        {
             // Game is still left, request for next move
             StartCoroutine(AskForNextMove());
         }
-        return;
     }
 
     private IEnumerator
@@ -318,4 +325,12 @@ public class Engine_AvA_Time : MonoBehaviour {
 
     #endregion
 
+
+    public void
+    OnApplicationQuit()
+    {
+        Engines[0].Stop();
+        Engines[1].Stop();
+        Application.Quit();
+    }
 }

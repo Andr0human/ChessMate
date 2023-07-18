@@ -3,103 +3,91 @@ using TMPro;
 
 public class Timer : MonoBehaviour
 {
-    [SerializeField] private float alloted_time_per_side = 60f;
-    public float clock_white = 100f, clock_black = 100f;
-    public float increment_time = 2f;
-    public bool white_tick, black_tick;
+    [SerializeField] private float AllotedTimePerSide = 60f;
 
-    [SerializeField] private TextMeshProUGUI white_time, black_time;
-    [SerializeField] private Color high_time_color;
-    [SerializeField] private Color med_time_color;
-    [SerializeField] private Color low_time_color;
+    public float[] ChessClocks;
+    public float IncrementTime = 1f;
 
-    private int saved_state;
+    [SerializeField] private TextMeshProUGUI[] TimeInText;
+
+    [SerializeField] private Color HighTimeColor;
+    [SerializeField] private Color MedTimeColor;
+    [SerializeField] private Color LowTimeColor;
+
+    private int Side2Tick = 3;
+
 
     public void
-    Update()
+    Start()
     {
-        if (!white_tick && !black_tick)
-            return;
-        if (white_tick) {
-            clock_white -= 1f * Time.deltaTime;
-        }
-        if (black_tick) {
-            clock_black -= 1f * Time.deltaTime;
-        }
-        TextColorChange(ref white_time, clock_white);
-        TextColorChange(ref black_time, clock_black);
-        if (clock_white <= 0f || clock_black <= 0f) {
-            white_tick = black_tick = false;
-        }
-        white_time.text = RemainingTime(clock_white);
-        black_time.text = RemainingTime(clock_black);
+        ChessClocks = new float[2];
     }
 
     public void
-    TextColorChange(ref TextMeshProUGUI __t, float value)
+    Init(int StartingSide)
     {
-        if (value < 15f)
+        Side2Tick = StartingSide;
+
+        if (AllotedTimePerSide != 0)
         {
-            __t.color = low_time_color;
+            TimeInText[0].enabled = true;
+            TimeInText[1].enabled = true;
+        }
+    }
+
+    private void
+    Update()
+    {
+        if (Side2Tick >= 2)
+            return;
+
+        ChessClocks[Side2Tick] -= 1f * Time.deltaTime;
+
+        TextColorChange(ref TimeInText[0], ChessClocks[0]);
+        TextColorChange(ref TimeInText[1], ChessClocks[1]);
+
+        TimeInText[0].text = RemainingTime(ChessClocks[0]);
+        TimeInText[1].text = RemainingTime(ChessClocks[1]);
+    }
+
+    public void
+    TextColorChange(ref TextMeshProUGUI __t, float time_left)
+    {
+        if (time_left < 15f)
+        {
+            __t.color = LowTimeColor;
             return;
         }
-        if (value < 45f)
+        if (time_left < 45f)
         {
-            __t.color = med_time_color;
+            __t.color = MedTimeColor;
             return;
         }
-        __t.color = high_time_color;
+        __t.color = HighTimeColor;
     }
 
     public void
     ClockReset(int color)
     {
-        clock_white = clock_black = alloted_time_per_side;
-        black_tick = false;
-        white_tick = false;
-
-        if (color ==  1) white_tick = true;
-        if (color == -1) black_tick = true;
+        ChessClocks[0] = ChessClocks[1] = AllotedTimePerSide;
+        Side2Tick = 0;      // !TODO
     }
 
     public void
     SwitchPlayer()
     {
-        if (white_tick)
-        {
-            clock_white += increment_time;
-            white_tick = false;
-            black_tick = true;
-            return;
-        }
-        clock_black += increment_time;
-        black_tick = false;
-        white_tick = true;
+        if (Side2Tick < 2)
+            ChessClocks[Side2Tick] += IncrementTime;
+        Side2Tick ^= 1;
     }
 
     public void
     ClockFreeze()
-    {
-        if (black_tick) {
-            saved_state = -1;
-        }
-        else if (white_tick) {
-            saved_state = 1;
-        }
-        black_tick = white_tick = false;
-    }
+    { Side2Tick += 2; }
 
     public void
     ClockUnfreeze()
-    {
-        if (saved_state == 1) {
-            white_tick = true;
-            return;
-        }
-        if (saved_state == -1) {
-            black_tick = true;
-        }
-    }
+    { Side2Tick -= 2; }
 
     public string
     RemainingTime(double time_left)
@@ -117,20 +105,15 @@ public class Timer : MonoBehaviour
     }
 
     public void
-    SetTime(int _x, int _y)
+    SetTime(float _x, float _y)
     {
-        alloted_time_per_side = _x;
-        increment_time = _y;
+        AllotedTimePerSide = _x;
+        ChessClocks[0] = ChessClocks[1] = _x;
+        IncrementTime = _y;
     }
 
     public float
     GetAllotedTime()
-    { return alloted_time_per_side; }
+    { return AllotedTimePerSide; }
 
-    public void
-    Init()
-    {
-        clock_white = alloted_time_per_side;
-        clock_black = alloted_time_per_side;
-    }
 }

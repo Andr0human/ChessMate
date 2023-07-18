@@ -82,14 +82,12 @@ public class BoardHandler : MonoBehaviour
     }
 
     public void
-    BoardHighLight(ulong end, ref ChessBoard cb)
+    BoardHighLight(ulong end)
     {
-        while (end != 0)
+        for (int sq = 0; sq < 64; sq++)
         {
-            ulong num = end - (end & end - 1uL);
-            end &= end - 1uL;
-            int num2 = cb.idxs[num % 67];
-            tiles[num2].GetComponent<TileSet>().high_light();
+            if (((1UL << sq) & end) != 0)
+                tiles[sq].GetComponent<TileSet>().high_light();
         }
     }
 
