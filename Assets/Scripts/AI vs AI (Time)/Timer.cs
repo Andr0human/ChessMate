@@ -3,21 +3,17 @@ using TMPro;
 
 public class Timer : MonoBehaviour
 {
-    [SerializeField] private float AllotedTimePerSide = 60f;
+    public float AllotedTimePerSide = 60f;
+    public float IncrementTime = 1f;
 
     public float[] ChessClocks;
-    public float IncrementTime = 1f;
 
     [SerializeField] private TextMeshProUGUI[] TimeInText;
 
-    [SerializeField] private Color HighTimeColor;
-    [SerializeField] private Color MedTimeColor;
-    [SerializeField] private Color LowTimeColor;
-
-    private int Side2Tick = 3;
+    private int Side2Tick = 2;
 
 
-    public void
+    private void
     Start()
     {
         ChessClocks = new float[2];
@@ -54,23 +50,18 @@ public class Timer : MonoBehaviour
     TextColorChange(ref TextMeshProUGUI __t, float time_left)
     {
         if (time_left < 15f)
-        {
-            __t.color = LowTimeColor;
-            return;
-        }
-        if (time_left < 45f)
-        {
-            __t.color = MedTimeColor;
-            return;
-        }
-        __t.color = HighTimeColor;
+            __t.color = new Color(0.844f, 0.086f, 0.0267f);
+        else if (time_left < 45f)
+            __t.color = new Color(1f, 0.901f,0.156f);
+        else
+            __t.color = new Color(0.1297f, 0.5f, 0.16841f);
     }
 
     public void
     ClockReset(int color)
     {
         ChessClocks[0] = ChessClocks[1] = AllotedTimePerSide;
-        Side2Tick = 0;      // !TODO
+        Side2Tick = 2;
     }
 
     public void
@@ -83,11 +74,17 @@ public class Timer : MonoBehaviour
 
     public void
     ClockFreeze()
-    { Side2Tick += 2; }
+    {
+        if (Side2Tick < 2)
+            Side2Tick += 2;
+    }
 
     public void
     ClockUnfreeze()
-    { Side2Tick -= 2; }
+    {
+        if (Side2Tick >= 2)
+            Side2Tick -= 2;
+    }
 
     public string
     RemainingTime(double time_left)
@@ -111,9 +108,4 @@ public class Timer : MonoBehaviour
         ChessClocks[0] = ChessClocks[1] = _x;
         IncrementTime = _y;
     }
-
-    public float
-    GetAllotedTime()
-    { return AllotedTimePerSide; }
-
 }

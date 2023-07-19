@@ -6,7 +6,7 @@ public class UserInput_AvA_Time : MonoBehaviour
     {
         if (Input.GetKeyDown(KeyCode.Equals))
         {
-            FindObjectOfType<Arena>().InitializeArena();
+            FindObjectOfType<Arena>().InitArena();
             return;
         }
         if (Input.GetKeyDown(KeyCode.Backslash))
