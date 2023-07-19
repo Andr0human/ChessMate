@@ -71,8 +71,7 @@ class UserInput : MonoBehaviour
     {
         while (true)
         {
-            StartCoroutine( MouseClickCoroutine() );
-            yield return new WaitUntil(() => SquareSelected != -1);
+            yield return StartCoroutine( MouseClickCoroutine() );
 
             if (movelist.ValidInitSquare(SquareSelected))
             {
@@ -92,7 +91,7 @@ class UserInput : MonoBehaviour
             if ((InitSquare != -1) && movelist.ValidDestSquare(InitSquare, SquareSelected))
             {
                 DestSquare = SquareSelected;
-                break;
+                yield break;
             }
         }
     }

@@ -8,7 +8,7 @@ public class Core : MonoBehaviour
     [HideInInspector] public List<ulong> HashIndex;
     public Dictionary<ulong, List<int>> OpeningBook;
 
-    public string StartPosition = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    public string StartFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 
     #region Utility

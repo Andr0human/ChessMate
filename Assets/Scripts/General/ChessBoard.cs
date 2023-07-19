@@ -46,20 +46,21 @@ public class ChessBoard
         for (int i = 0; i < 15; i++) Pieces[i] = 0;
         pColor = csep = 0;
         halfmove = fullmove = 0;
+
+        for (int i = 0; i < 64; i++)
+            idxs[(1UL << i) % 67] = i;
     }
 
     public
     ChessBoard()
-    {
-        for (int i = 0; i < 64; i++) {
-            idxs[(1UL << i) % 67] = i;
-        }
-        BoardReset();
-    }
+    { BoardReset(); }
 
     public
     ChessBoard(string fen)
-    { LoadFromFEN(fen); }
+    {
+        BoardReset();
+        LoadFromFEN(fen);
+    }
 
     public void
     LoadFromFEN(string fen)

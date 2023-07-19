@@ -7,7 +7,7 @@ public class BoardHandler : MonoBehaviour
 
     [SerializeField] private GameObject[] objects;
     private readonly GameObject[] pieces = new GameObject[64];
-    private readonly GameObject[] tiles = new GameObject[64];
+    private readonly GameObject[]  tiles = new GameObject[64];
 
     public void
     InitializeBoard(ref ChessBoard _cb)
