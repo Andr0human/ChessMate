@@ -2187,11 +2187,11 @@ GameObject:
   - component: {fileID: 1554426737}
   - component: {fileID: 1554426739}
   - component: {fileID: 1554426740}
-  - component: {fileID: 1554426741}
   - component: {fileID: 1554426742}
   - component: {fileID: 1554426743}
   - component: {fileID: 1554426746}
   - component: {fileID: 1554426744}
+  - component: {fileID: 1554426747}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -2263,24 +2263,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f44396c2fc67ac949810954154609e71, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!114 &1554426741
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1554426735}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8bca872101b2d6543abe8d439015d8e6, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  cs: {fileID: 1554426744}
-  bh: {fileID: 1554426737}
-  tmr: {fileID: 1554426742}
-  can_adjourn: 0
-  random_openings: 0
-  prediction_result: 0
 --- !u!114 &1554426742
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2293,17 +2275,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: da454c8e073c89941a5b8a8a2f4c45c4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  alloted_time_per_side: 60
-  clock_white: 100
-  clock_black: 100
-  increment_time: 2
-  white_tick: 0
-  black_tick: 0
-  white_time: {fileID: 138001211}
-  black_time: {fileID: 280226878}
-  high_time_color: {r: 0.06320754, g: 0.5, b: 0.1262498, a: 1}
-  med_time_color: {r: 0.8490566, g: 0.80373996, b: 0.06728367, a: 1}
-  low_time_color: {r: 0.754717, g: 0.12388747, b: 0.12388747, a: 1}
+  AllotedTimePerSide: 60
+  IncrementTime: 1
+  ChessClocks: []
+  TimeInText: []
+  HighTimeColor: {r: 0, g: 0, b: 0, a: 0}
+  MedTimeColor: {r: 0, g: 0, b: 0, a: 0}
+  LowTimeColor: {r: 0, g: 0, b: 0, a: 0}
 --- !u!114 &1554426743
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2316,16 +2294,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9cbfdc0b4f63513499e545b742a502cd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ce: {fileID: 1554426741}
   cs: {fileID: 1554426744}
+  mm: {fileID: 1554426747}
   GamesToPlay: 10
   GameAmountField: {fileID: 1815347783}
   TimeFormatField: {fileID: 919506444}
   EngineNameField: {fileID: 1451756573}
-  ArenaEngine1: 
-  ArenaEngine2: 
   CurrentGameNumText: {fileID: 2026667992}
   EstimateTimeText: {fileID: 778789072}
+  ArenaEngines: []
 --- !u!114 &1554426744
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2340,7 +2317,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   mg: {fileID: 1554426739}
   HashIndex: 
-  StartPosition: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+  StartFen: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
 --- !u!114 &1554426746
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2358,6 +2335,28 @@ MonoBehaviour:
   cs: {fileID: 1554426744}
   alloted_run_time: 10
   moveCount_threshold: 7
+--- !u!114 &1554426747
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1554426735}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9f2020c71a78b6d49b61cf98be36445e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cs: {fileID: 1554426744}
+  bh: {fileID: 1554426737}
+  tmr: {fileID: 1554426742}
+  FixedTimePerMove: 0
+  RandomOpenings: 0
+  CanAdjourn: 0
+  AdjournWinMargin: 5
+  EndState: 0
+  EndResult: 0
+  EndPrediction: 0
 --- !u!1 &1566363115 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 51614721084381701, guid: 9226d4902fab87a46b1171cf7f5337ab, type: 3}

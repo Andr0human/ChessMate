@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections;
+using UnityEngine.SceneManagement;
 
 class MatchManagerPvsAI : MonoBehaviour
 {
@@ -14,16 +15,16 @@ class MatchManagerPvsAI : MonoBehaviour
     private IPlayer[] Players;
     private int Side2Move;
 
-    private string StartFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-
+    //! TODO Cut the game immediately if one player time reaches zero.
 
     private void
     Start()
     {
         cs.Init();
         BoardPosition = new ChessBoard();
-        BoardPosition.LoadFromFEN(StartFen);
+        BoardPosition.LoadFromFEN(cs.StartFen);
         bh.InitializeBoard(ref BoardPosition);
+        Players = new IPlayer[2];
     }
 
 
@@ -32,11 +33,11 @@ class MatchManagerPvsAI : MonoBehaviour
     {
         Data = new MatchData();
         Side2Move = 0;
-        BoardPosition.LoadFromFEN(StartFen);
+        BoardPosition.LoadFromFEN(cs.StartFen);
 
         Players = new IPlayer[2];
         Players[human_color] = new HumanPlayer();
-        Players[human_color ^ 1] = new ChessEngine("bot", StartFen, true);
+        Players[human_color ^ 1] = new ChessEngine("bot", cs.StartFen, true, false);
 
         tmr.Init(Side2Move);
         StartCoroutine( PlayGame() );
@@ -53,7 +54,7 @@ class MatchManagerPvsAI : MonoBehaviour
 
         // checkmate/stalemate check
         if (moveslist.moveCount == 0)
-            return (moveslist.KingAttackers > 0) ? (Side2Move ^ 1) : 3;
+            return (moveslist.KingAttackers > 0) ? 1 + (Side2Move ^ 1) : 3;
 
         // Insufficient material check
         if (cs.InsufficientMaterial(BoardPosition)) return 4;
@@ -98,14 +99,9 @@ class MatchManagerPvsAI : MonoBehaviour
 
         while ((state = IsGameOver()) == -1)
         {
-            // PlayNextMove();
-            Players[Side2Move].Play(ref BoardPosition, Data.LastPlayedMove());
-            StartCoroutine( Players[Side2Move].ReadOutputCoroutine() );
-            yield return new WaitUntil(() => Players[Side2Move].MoveMade());
-            
+            // Let player make his move
+            yield return StartCoroutine( Players[Side2Move].Play(BoardPosition, Data.LastPlayedMove()) );
             var (move, eval) = Players[Side2Move].GetResults();
-
-            // UnityEngine.Debug.Log(Side2Move + " " + move + " " + eval);
 
             UpdateBoardElements(move, eval);
 
@@ -116,14 +112,6 @@ class MatchManagerPvsAI : MonoBehaviour
         }
 
         GameOverScreen(state);
-    }
-
-
-    private void
-    PlayNextMove()
-    {
-        Players[Side2Move].Play(ref BoardPosition, Data.LastPlayedMove());
-        StartCoroutine( Players[Side2Move].ReadOutputCoroutine() );
     }
 
 
@@ -140,5 +128,15 @@ class MatchManagerPvsAI : MonoBehaviour
         bh.BoardReset(false);
         bh.MarkPlayedMove(move);
         bh.Recreate(ref BoardPosition);
+    }
+
+
+    private void
+    OnApplicationQuit()
+    {
+        if (Players[0] != null) Players[0].Stop();
+        if (Players[1] != null) Players[1].Stop();
+
+        Application.Quit();
     }
 }

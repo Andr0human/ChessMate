@@ -453,7 +453,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &99027310
 RectTransform:
   m_ObjectHideFlags: 0
@@ -2642,13 +2642,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: da454c8e073c89941a5b8a8a2f4c45c4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  AllotedTimePerSide: 60
-  ChessClocks: []
   IncrementTime: 1
+  ChessClocks: []
   TimeInText:
   - {fileID: 1121692145}
   - {fileID: 941114993}
-  HighTimeColor: {r: 0.18743324, g: 0.33962262, b: 0.19617026, a: 0}
+  HighTimeColor: {r: 0.09976861, g: 0.3584906, b: 0.112704694, a: 0}
   MedTimeColor: {r: 0.7735849, g: 0.71461564, b: 0.19339623, a: 0}
   LowTimeColor: {r: 0.5754717, g: 0.06343098, b: 0, a: 0}
 --- !u!114 &749713530
@@ -2665,7 +2664,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   mg: {fileID: 749713523}
   HashIndex: 
-  StartPosition: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+  StartFen: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
 --- !u!114 &749713532
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5072,7 +5071,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &1866593738
 RectTransform:
   m_ObjectHideFlags: 0

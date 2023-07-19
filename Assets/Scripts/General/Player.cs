@@ -6,14 +6,11 @@ using UnityEngine;
 
 public interface IPlayer
 {
-
-    void Play(ref ChessBoard position, int last_move);
-
-    IEnumerator ReadOutputCoroutine();
-
-    bool MoveMade();
+    IEnumerator Play(ChessBoard position, int last_move);
 
     (int, float) GetResults();
+
+    void Stop() {}
 }
 
 
@@ -91,25 +88,24 @@ public class ChessEngine : IPlayer
         return ((time_left + increment) / moves_to_go) + (increment / 2);
     }
 
-    public void
-    Play(ref ChessBoard __pos, int last_move)
+    public IEnumerator
+    Play(ChessBoard position, int last_move)
     {
         EngineMove = 0;
-        EngineEval = 0f;
+        EngineEval = 0;
 
         // Play Book Move if possible
-        if (AllowOpeningBook && cs.PositionInOpeningBook(ref __pos))
+        if (AllowOpeningBook && cs.PositionInOpeningBook(ref position))
         {
-            EngineMove = cs.PlayBookMove(ref __pos);
+            EngineMove = cs.PlayBookMove(ref position);
             EngineEval = 0;
-            return;
+            yield break;
         }
 
-        float search_time =
-            FixedMoveTime ? 0.2f : DecideTimeForSearch(ref __pos);
+        float search_time = FixedMoveTime ? 0.2f : DecideTimeForSearch(ref position);
 
         WriteInput(search_time, last_move);
-        // StartCoroutine( ReadOutputCoroutine() );
+        yield return new WaitUntil(ReadOutput);
     }
 
     private void
@@ -148,16 +144,9 @@ public class ChessEngine : IPlayer
         }
     }
 
-
-    public IEnumerator
-    ReadOutputCoroutine()
-    {
-        yield return new WaitUntil(ReadOutput);
-    }
-
     public void
     Stop()
-    {
+    { 
         if (!EngineProcess.HasExited)
         {
             EngineProcess.CloseMainWindow();
@@ -173,17 +162,12 @@ public class ChessEngine : IPlayer
         string output_meta_file = EngineOutputPath + ".meta";
 
         if (File.Exists(EngineInputPath)) File.Delete(EngineInputPath);
-        if (File.Exists(  input_meta_file)) File.Delete(  input_meta_file);
+        if (File.Exists(input_meta_file)) File.Delete(input_meta_file);
 
         if (File.Exists(EngineOutputPath)) File.Delete(EngineOutputPath);
-        if (File.Exists(  output_meta_file)) File.Delete(  output_meta_file);
+        if (File.Exists(output_meta_file)) File.Delete(output_meta_file);
     }
 
-    public bool
-    MoveMade()
-    { return EngineMove != 0; }
-
-    
     public (int, float)
     GetResults()
     { return (EngineMove, EngineEval); }
@@ -207,16 +191,7 @@ public class HumanPlayer : IPlayer
         mg = GameObject.FindObjectOfType<MoveGenerator>();
     }
 
-    public void
-    Play(ref ChessBoard position, int last_move)
-    {
-        HumanMove = 0;
-        HumanEval = 0;
-        BoardPosition = position;
-        // StartCoroutine( AskUserForSquares(position) );
-    }
-
-    public int
+    private int
     GenerateEncodeMoveForUser()
     {
         int color = BoardPosition.pColor;
@@ -237,25 +212,23 @@ public class HumanPlayer : IPlayer
         return move;
     }
 
-    public IEnumerator
-    ReadOutputCoroutine()
-    {
-        MoveList movelist = mg.GenerateMoves(ref BoardPosition);
-        ui.GetSquares(ref movelist);
+    public (int, float)
+    GetResults()
+    { return (HumanMove, HumanEval); }
 
+    public IEnumerator
+    Play(ChessBoard position, int last_move)
+    {
+        HumanMove = HumanEval = 0;
+        BoardPosition = position;
+
+        MoveList movelist = mg.GenerateMoves(ref BoardPosition);
+
+        ui.GetSquares(ref movelist);
         yield return new WaitUntil(() => (ui.InitSquare != -1) && (ui.DestSquare != -1));
 
         HumanMove = GenerateEncodeMoveForUser();
         HumanEval = 0;
     }
-
-    public bool
-    MoveMade()
-    { return HumanMove != 0; }
-
-    
-    public (int, float)
-    GetResults()
-    { return (HumanMove, HumanEval); }
 }
 

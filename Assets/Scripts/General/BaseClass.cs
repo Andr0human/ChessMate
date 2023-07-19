@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using System;
+using System.IO;
 
 
 public class MoveList
@@ -59,6 +60,7 @@ public class MoveList
     }
 };
 
+
 public class KAinfo
 {
     public int attackers = 0;
@@ -73,101 +75,8 @@ public class KAinfo
 };
 
 
-public class Pgn
-{
-    private readonly List<Vector2Int> playlist;
-    private readonly List<Vector2> evals;
-    private readonly List<Vector2> time_left;
-    private readonly List<int> playedMoves;
-
-    public
-    Pgn()
-    {
-        playlist = new List<Vector2Int>();
-        evals = new List<Vector2>();
-        time_left = new List<Vector2>();
-        playedMoves = new List<int>();
-    }
-
-    public void
-    Add(int cl, int move, float t_eval, float t_time, bool bot_move = true)
-    {
-        if (cl == 1)
-        {
-            playlist.Add(new Vector2Int(move, 0));
-            evals.Add(new Vector2(t_eval, 0));
-            time_left.Add(new Vector2(t_time, 0));
-        }
-        else
-        {
-            int index = playlist.Count - 1;
-            if (index == -1)
-            {
-                playlist.Add(new Vector2Int(0, 0));
-                evals.Add(new Vector2(0, 0));
-                time_left.Add(new Vector2(t_time, 0));
-                index = 0;
-            }
-            playlist[index] = new Vector2Int(playlist[index].x, move);
-            evals[index] = new Vector2(evals[index].x, t_eval);
-            time_left[index] = new Vector2(time_left[index].x, t_time);
-        }
-        if (bot_move) playedMoves.Add(move);
-    }
-
-    public void
-    ClearList()
-    {
-        playlist.Clear();
-        evals.Clear();
-        time_left.Clear();
-        playedMoves.Clear();
-    }
-
-    public int
-    MoveCountFull()
-    {
-        int num = playlist.Count;
-        if (playlist[num - 1].y == 0) num--;
-        return num;
-    }
-
-    public List<Vector2Int> GetPgn()
-    { return playlist; }
-
-    public List<Vector2> GetEval()
-    { return evals; }
-
-    public List<Vector2> GetTime()
-    { return time_left; }
-
-    public Vector2 LastOfEval()
-    { return evals[evals.Count - 1]; }
-
-    public int
-    DrawCounter(float margin)
-    {
-        int count = 0;
-        foreach (var eval in evals)
-            count = (eval.x < margin) && (eval.y < margin) ? (count + 1) : (0);
-        return count;
-    }
-
-
-    public int GetLastMove()
-    {
-        if (playedMoves.Count == 0) return 0;
-        return playedMoves[playedMoves.Count - 1];
-    }
-
-    public List<int> GetPlayedMoves()
-    { return playedMoves; }
-}
-
-
 public class MatchData
 {
-
     private List<int> moves;
     private List<float> evals;
     private List<float> time_left;
@@ -216,6 +125,114 @@ public class MatchData
             if (key == last_key) count++;
         
         return count >= 3;
+    }
+
+    public int
+    DifferentEvalCount(float margin)
+    {
+        int count = 0;
+        for (int i = 1; i < evals.Count; i += 2)
+        {
+            float eval_diff = Mathf.Abs(evals[i] - evals[i - 1]);
+            float max_eval = Mathf.Max(Mathf.Abs(evals[i]), Mathf.Abs(evals[i - 1]));
+
+            if ((eval_diff >= margin) && (max_eval <= 12f)) count++;
+        }
+        return count;
+    }
+
+    public (float, float)
+    LastEvalPair()
+    {
+        int n = evals.Count;
+        if (n < 2)
+            return (0f, 0f);
+        
+        return (evals[n - 2], evals[n - 1]);
+    }
+
+    public int
+    DrawCounter(float margin)
+    {
+        int count = 0;
+        foreach (int eval in evals)
+            count = (Mathf.Abs(eval) < margin) ? (count + 1) : (0);
+        return count;
+    }
+}
+
+
+class ArenaScoreSheet
+{
+    private string engine1;
+    private string engine2;
+
+    private int prediction_attempt;
+    private int prediction_success;
+
+    List<int> results;
+
+    public ArenaScoreSheet(string __engine1, string __engine2)
+    {
+        engine1 = __engine1;
+        engine2 = __engine2;
+
+        prediction_attempt = prediction_success = 0;
+        results = new List<int>();
+    }
+
+    public void
+    Add(int end_result, int state, int end_prediciton)
+    {
+        results.Add(end_result);
+
+        if (end_prediciton != 0)
+        {
+            prediction_attempt++;
+            if (end_prediciton == end_result)
+                prediction_success++;
+        }
+    }
+
+    private (int, int)
+    CalculateWins(int win_value)
+    {
+        int count1 = 0, count2 = 0;
+
+        for (int i = 0; i < results.Count; i += 2)
+            if (results[i] == win_value) count2++;
+        
+        for (int i = 1; i < results.Count; i += 2)
+            if (results[i] == -win_value) count2++;
+        
+        return (count1, count2);
+    }
+
+
+    public void
+    PrintArenaResult()
+    {
+        var ( e1_wins_w,  e1_wins_b) = CalculateWins(1);
+        var ( e2_wins_w,  e2_wins_b) = CalculateWins(-1);
+        var (e1_draws_w, e1_draws_b) = CalculateWins(0);
+
+        int  e1_wins_t =  e1_wins_w +  e1_wins_b;
+        int  e2_wins_t =  e2_wins_w +  e2_wins_b;
+        int e1_draws_t = e1_draws_w + e1_draws_b;
+
+        string file_path = Application.streamingAssetsPath + "/arena/results.txt";
+
+        File.WriteAllText(file_path,
+            "####     Arena RESULTS     #####\n"
+            + "Games played : " + (results.Count).ToString()
+            + engine1 + " vs " + engine2 + "\n"
+            + "White => | Wins : " + e1_wins_w + " | Draws : " + e1_draws_w + " | Loss : " + e2_wins_b + " |\n"
+            + "Black => | Wins : " + e1_wins_b + " | Draws : " + e1_draws_b + " | Loss : " + e2_wins_w + " |\n"
+            + "Total => | Wins : " + e1_wins_t + " | Draws : " + e1_draws_t + " | Loss : " + e2_wins_t + " |\n"
+        );
+
+
+        //! TODO ... Prediction Accuracy + loss_on_time.
     }
 }
 
