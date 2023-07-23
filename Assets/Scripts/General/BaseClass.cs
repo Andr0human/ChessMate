@@ -4,6 +4,34 @@ using System;
 using System.IO;
 
 
+public static class TT
+{
+    public static ulong[] HashIndex;
+
+    static ulong x = 1237;
+
+    static ulong xorshift64star()
+    {
+        x ^= x >> 12;
+        x ^= x << 25;
+        x ^= x >> 27;
+        return x * 0x2545F4914F6CDD1DUL;
+    }
+
+
+    public static void
+    Init()
+    {
+        HashIndex = new ulong[860];
+
+        //! TODO -> Starting Seed
+
+        for (int i = 0; i < 860; i++)
+            HashIndex[i] = xorshift64star();
+    }
+}
+
+
 public class MoveList
 {
     public int KingAttackers;
@@ -151,13 +179,25 @@ public class MatchData
         return (evals[n - 2], evals[n - 1]);
     }
 
-    public int
-    DrawCounter(float margin)
+    public bool
+    DrawnPositionForContinuousMoves(float draw_margin, int length)
     {
+        if (evals.Count < length)
+            return false;
+        
         int count = 0;
-        foreach (int eval in evals)
-            count = (Mathf.Abs(eval) < margin) ? (count + 1) : (0);
-        return count;
+        foreach (float eval in evals)
+        {
+            count = (Mathf.Abs(eval) < draw_margin) ? (count + 1) : (0);
+
+            if (count >= length)
+                return true;
+
+            if (count + (length - evals.Count) < length)
+                return false;
+        }
+
+        return false;
     }
 }
 
@@ -181,15 +221,16 @@ class ArenaScoreSheet
         results = new List<int>();
     }
 
-    public void
-    Add(int end_result, int state, int end_prediciton)
-    {
-        results.Add(end_result);
 
-        if (end_prediciton != 0)
+    public void
+    Add(int result, int prediction)
+    {
+        results.Add(result);
+
+        if (prediction != 0)
         {
             prediction_attempt++;
-            if (end_prediciton == end_result)
+            if (prediction == result)
                 prediction_success++;
         }
     }
@@ -200,14 +241,13 @@ class ArenaScoreSheet
         int count1 = 0, count2 = 0;
 
         for (int i = 0; i < results.Count; i += 2)
-            if (results[i] == win_value) count2++;
+            if (results[i] == win_value) count1++;
         
         for (int i = 1; i < results.Count; i += 2)
             if (results[i] == -win_value) count2++;
         
         return (count1, count2);
     }
-
 
     public void
     PrintArenaResult()
@@ -222,15 +262,21 @@ class ArenaScoreSheet
 
         string file_path = Application.streamingAssetsPath + "/arena/results.txt";
 
+        string result_str = "Results => ";
+
+        foreach (var res in results)
+            result_str += res.ToString() + " ";
+
         File.WriteAllText(file_path,
             "####     Arena RESULTS     #####\n"
-            + "Games played : " + (results.Count).ToString()
+            + "Games played : " + (results.Count).ToString() + "\n"
             + engine1 + " vs " + engine2 + "\n"
             + "White => | Wins : " + e1_wins_w + " | Draws : " + e1_draws_w + " | Loss : " + e2_wins_b + " |\n"
             + "Black => | Wins : " + e1_wins_b + " | Draws : " + e1_draws_b + " | Loss : " + e2_wins_w + " |\n"
-            + "Total => | Wins : " + e1_wins_t + " | Draws : " + e1_draws_t + " | Loss : " + e2_wins_t + " |\n"
+            + "Total => | Wins : " + e1_wins_t + " | Draws : " + e1_draws_t + " | Loss : " + e2_wins_t + " |\n\n"
+            + "Prediction Accuracy => " + prediction_success.ToString() + "/" +  prediction_attempt.ToString() + "\n\n"
+            + result_str
         );
-
 
         //! TODO ... Prediction Accuracy + loss_on_time.
     }

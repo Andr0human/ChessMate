@@ -345,12 +345,12 @@ public class ChessBoard
     }
 
     public ulong
-    GenerateHashKey(ref List<ulong> HashIndex)
+    GenerateHashKey()
     {
         ulong key = 0;
-        if (pColor == -1) key ^= HashIndex[0];
-        key ^= HashIndex[(csep & 127) + 1];
-        key ^= HashIndex[(csep >> 7) + 66];
+        if (pColor == -1) key ^= TT.HashIndex[0];
+        key ^= TT.HashIndex[(csep & 127) + 1];
+        key ^= TT.HashIndex[(csep >> 7) + 66];
 
         for (int i = 0; i <= 6; i++)
         {
@@ -358,13 +358,13 @@ public class ChessBoard
             while (tmp != 0) {
                 val = tmp ^ (tmp & (tmp - 1));
                 tmp &= tmp - 1;
-                key ^= HashIndex[470 + i * (idxs[val % 67] + 1)];
+                key ^= TT.HashIndex[470 + i * (idxs[val % 67] + 1)];
             }
             tmp = Pieces[7 - i];
             while (tmp != 0) {
                 val = tmp ^ (tmp & (tmp - 1));
                 tmp &= tmp - 1;
-                key ^= HashIndex[470 - i * (idxs[val % 67] + 1)];
+                key ^= TT.HashIndex[470 - i * (idxs[val % 67] + 1)];
             }
         }
 

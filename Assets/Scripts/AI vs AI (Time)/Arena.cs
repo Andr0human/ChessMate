@@ -8,23 +8,24 @@ using UnityEngine;
 
 public class Arena : MonoBehaviour
 {
-    [SerializeField] Core cs;
-    [SerializeField] MatchManagerAIvsAI mm;
+    [SerializeField] private MatchManager mm;
 
-
-    [SerializeField] private int GamesToPlay = 10;
-
+    public  int    GamesToPlay = 10;
     private int CurrentGameNum = 1;
 
-    public TextMeshProUGUI GameAmountField;
-    public TextMeshProUGUI TimeFormatField;
-    public TextMeshProUGUI EngineNameField;
+    [HideInInspector] public float FixedTimePerGame = 30f;
+    [HideInInspector] public float IncrementPerGame =  1f;
+
+    public bool fixedTimePerMove = false;
+    public bool      Adjournment = false;
+
     public TextMeshProUGUI CurrentGameNumText;
-    public TextMeshProUGUI EstimateTimeText;
+    public TextMeshProUGUI  RemainingTimeText;
 
     public string[] ArenaEngines;
     private ArenaScoreSheet ScoreSheet;
     private Stopwatch sw;
+
 
     private int
     InterestingGame(int result, int prediction)
@@ -49,14 +50,39 @@ public class Arena : MonoBehaviour
 
 
     private void
-    PrintIfInterestingGame(int result, int prediction)
+    PrintIfInterestingGame()
     {
-        int value = InterestingGame(result, prediction);
-        if (value == -1)
-            return;
+        // int value = InterestingGame(result, prediction);
+        // string value = InterestingGame(result, prediction);
+        // if (value == "")
+        //     return;
         
-        //! TODO ... print game, eval, time in a file
+        // //! TODO ... print game, eval, time in a file
+
+        // string dir = Application.streamingAssetsPath + "/arena/";
+        // string game_no = CurrentGameNum.ToString();
+
+        // string path_pgn = dir + "Games/game" + game_no + "_" + value + ".pgn";
+        
+
     }
+
+
+    private int
+    GetResultFromState(int state, int prediction)
+    {
+        // Game Ends in Adjournment
+        if (Adjournment && (prediction != 0))
+            return prediction;
+
+        // Game ended normally (one side wins)
+        if (state == 1 || state == 7) return  1;
+        if (state == 2 || state == 8) return -1;
+        
+        // Game ends in a draws
+        return 0;
+    }
+
 
     private void
     DisplayEstimatedTime()
@@ -70,75 +96,22 @@ public class Arena : MonoBehaviour
         int remainingSeconds = seconds % 60;
 
         string timeString = $"{hours} hr, {minutes} min, {remainingSeconds} secs";
-        EstimateTimeText.text = "Estimated Time Left : " + timeString;
     }
 
-    public void
-    SetSampleSize()
-    {
-        string text = GameAmountField.text;
-        text = cs.RemoveNonAlphaNumeric(text);
-
-        if (text.Length == 0)
-            return;
-
-        GamesToPlay = int.Parse(text);
-    }
-
-    public void
-    SetTimeFormat()
-    {
-        string[] values = TimeFormatField.text.Split();
-
-        float time_per_side = 60, increment = 0;
-
-        if (values.Length == 0)
-            return;
-
-        if (values.Length >= 1)
-            time_per_side = float.Parse(cs.RemoveNonAlphaNumeric( values[0] ));
-
-        if (values.Length >= 2)
-            increment = float.Parse(cs.RemoveNonAlphaNumeric( values[1] ));
-
-        FindObjectOfType<Timer>().SetTime(time_per_side, increment);
-    }
-
-    public void
-    SetEngines()
-    {
-        ArenaEngines = new string[2];
-        string[] names = EngineNameField.text.Split();
-
-        if (names.Length < 2)
-            return;
-        
-        ArenaEngines[0] = cs.RemoveNonAlphaNumeric( names[0] );
-        ArenaEngines[1] = cs.RemoveNonAlphaNumeric( names[1] );
-    }
-
-
-    public void
-    InitArena()
-    {
-        GameObject.Find("Game Amount").SetActive(false);
-        GameObject.Find("Time Format").SetActive(false);
-        GameObject.Find("Engine Names").SetActive(false);
-
-        ScoreSheet = new ArenaScoreSheet(ArenaEngines[0], ArenaEngines[1]);
-        sw = new Stopwatch();
-
-        StartCoroutine( PlayArena() );
-    }
 
     private void
-    UpdateArenaElements(int s2s, int end_result, int end_state, int prediction)
+    UpdateArenaElements(int s2s, int end_state, int prediction)
     {
-        // Match Ended
-        ScoreSheet.Add(end_result, end_state, prediction);
+        int end_result = GetResultFromState(end_state, prediction);
+
+        // Update Wins, Loss, Draw
+        ScoreSheet.Add(end_result, prediction);
 
         // Display time to complete all remaining games
         DisplayEstimatedTime();
+
+        // Print Game pgn if found interesting
+        //! TODO PrintIfInterestingGame(end_result, prediction);
 
         // Print Results when new game pair starts
         if (s2s == 1)
@@ -148,28 +121,48 @@ public class Arena : MonoBehaviour
         }
     }
 
+    // 
+
+
+    public void
+    InitArena()
+    {
+        ScoreSheet = new ArenaScoreSheet(ArenaEngines[0], ArenaEngines[1]);
+        sw = new Stopwatch();
+
+        CurrentGameNumText.gameObject.SetActive(true);
+        RemainingTimeText.gameObject.SetActive(true);
+
+        StartCoroutine( PlayArena() );
+    }
+
 
     public IEnumerator
     PlayArena()
     {
-        List<int> RandomOpening = new List<int>();
+        List<int> opening_moves = new List<int>();
         int side2start = 0;
         sw.Reset();
+        sw.Start();
 
         while (CurrentGameNum <= GamesToPlay)
         {
             // Set Current Game Number Text on Board
             CurrentGameNumText.text = "Game Number : " + CurrentGameNum.ToString();
 
-            if (side2start == 0)
-                RandomOpening = FindObjectOfType<BookMaker>().GetRandomOpening();
+            //! TODO GetRandomOpening
+            // if (side2start == 0)
+            //     opening_moves = FindObjectOfType<OpeningBook>().GetRandomOpening();
 
-            // Start Match
+            GameObject.FindObjectOfType<Timer>().SetTime(FixedTimePerGame, IncrementPerGame);
+
+            // Play Current Match
             yield return StartCoroutine( mm.StartNewGame(
-                ArenaEngines[side2start], ArenaEngines[side2start ^ 1], RandomOpening )
-            );
+                ArenaEngines[side2start], ArenaEngines[side2start ^ 1], opening_moves,
+                fixedTimePerMove, false, Adjournment
+            ));
 
-            UpdateArenaElements(side2start, mm.EndResult, mm.EndState, mm.EndPrediction);
+            UpdateArenaElements(side2start, mm.EndState, mm.EndPrediction);
 
             // To next game
             CurrentGameNum++;
@@ -177,12 +170,12 @@ public class Arena : MonoBehaviour
 
             // Wait before starting next game
             yield return new WaitForSeconds(3f);
+            UnityEngine.Debug.Log("Waited for 3 seconds before next game.");
         }
 
         // All games ended
         CurrentGameNumText.text = "Games completed!";
         sw.Stop();
     }
-
 }
 

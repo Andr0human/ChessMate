@@ -23,6 +23,9 @@ public class Timer : MonoBehaviour
     Init(int StartingSide)
     {
         Side2Tick = StartingSide;
+        ChessClocks[0] = ChessClocks[1] = AllotedTimePerSide;
+
+        ClockUnfreeze();
 
         if (AllotedTimePerSide != 0)
         {
@@ -82,7 +85,7 @@ public class Timer : MonoBehaviour
     public void
     ClockUnfreeze()
     {
-        if (Side2Tick >= 2)
+        if (Side2Tick > 1)
             Side2Tick -= 2;
     }
 
@@ -105,7 +108,6 @@ public class Timer : MonoBehaviour
     SetTime(float _x, float _y)
     {
         AllotedTimePerSide = _x;
-        ChessClocks[0] = ChessClocks[1] = _x;
         IncrementTime = _y;
     }
 }

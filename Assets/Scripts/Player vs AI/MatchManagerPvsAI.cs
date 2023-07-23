@@ -1,74 +1,61 @@
-using UnityEngine;
+/* using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine.SceneManagement;
 
 class MatchManagerPvsAI : MonoBehaviour
 {
-    [SerializeField] private         Core  cs;
-    [SerializeField] private BoardHandler  bh;
-    [SerializeField] private        Timer tmr;
+    public  Core  cs;
+    public Timer tmr;
 
-    public  GameObject EndScreen;
-    private ChessBoard BoardPosition;
-    private MatchData Data;
+    public GameObject EndScreen;
 
-    private IPlayer[] Players;
-    private int Side2Move;
-
-    //! TODO Cut the game immediately if one player time reaches zero.
-
-    private void
-    Start()
-    {
-        cs.Init();
-        BoardPosition = new ChessBoard();
-        BoardPosition.LoadFromFEN(cs.StartFen);
-        bh.InitializeBoard(ref BoardPosition);
-        Players = new IPlayer[2];
-    }
-
-
-    public void
+    public IEnumerator
     StartNewGame(int human_color)
     {
-        Data = new MatchData();
-        Side2Move = 0;
-        BoardPosition.LoadFromFEN(cs.StartFen);
+        cs.Data = new MatchData();
+        cs.Side2Move = 0;
+        cs.BoardPosition = new ChessBoard(cs.StartFen);
 
-        Players = new IPlayer[2];
-        Players[human_color] = new HumanPlayer();
-        Players[human_color ^ 1] = new ChessEngine("bot", cs.StartFen, true, false);
+        cs.EndState = -1;
 
-        tmr.Init(Side2Move);
-        StartCoroutine( PlayGame() );
+        cs.Players[human_color] = new HumanPlayer();
+        cs.Players[human_color ^ 1] = new ChessEngine("bot", cs.StartFen, true, false);
+
+        tmr.Init(cs.Side2Move);
+        yield return StartCoroutine( PlayGame() );
     }
 
-    #region GAME-OVER
-
-    private int
-    IsGameOver()
+    private IEnumerator
+    PlayGame()
     {
-        // Refer to GameOverScreen() for various-states.
+        while ((cs.EndState = cs.IsGameOver()) == -1)
+        {
+            // Let player make his move
+            yield return StartCoroutine( cs.RequestMove() );
 
-        MoveList moveslist = cs.mg.GenerateMoves(ref BoardPosition);
+            // Time runs out before player making a move
+            if (cs.TimeLeftForSearch() == false)
+                break;
 
-        // checkmate/stalemate check
-        if (moveslist.moveCount == 0)
-            return (moveslist.KingAttackers > 0) ? 1 + (Side2Move ^ 1) : 3;
+            // Retrieve player move
+            var (move, eval) = cs.Players[cs.Side2Move].GetResults();
 
-        // Insufficient material check
-        if (cs.InsufficientMaterial(BoardPosition)) return 4;
+            // Update board elements after making move
+            yield return StartCoroutine( cs.UpdateBoardElements(move, eval) );
 
-        // 3-fold repetition and 50-move-rule
-        if (Data.ThreeMoveRepetitionDraw()) return 5;
-        if (Data.FiftyMoveRuleDraw()) return 6;
+            // Switch sides and next turn
+            cs.Side2Move ^= 1;
+        }
 
-        // Check if lost on time
-        if (tmr.ChessClocks[Side2Move] < 0f)
-            return 7 + (Side2Move ^ 1);
+        tmr.ClockFreeze();
 
-        return -1;
+        if (cs.Players[0] != null) cs.Players[0].Stop();
+        if (cs.Players[1] != null) cs.Players[1].Stop();
+
+        GameOverScreen(cs.EndState);
     }
+
 
     private void
     GameOverScreen(int state)
@@ -87,56 +74,4 @@ class MatchManagerPvsAI : MonoBehaviour
         EndScreen.GetComponent<TMPro.TextMeshProUGUI>().text = res;
         EndScreen.SetActive(true);
     }
-
-
-    #endregion
-
-
-    private IEnumerator
-    PlayGame()
-    {
-        int state;
-
-        while ((state = IsGameOver()) == -1)
-        {
-            // Let player make his move
-            yield return StartCoroutine( Players[Side2Move].Play(BoardPosition, Data.LastPlayedMove()) );
-            var (move, eval) = Players[Side2Move].GetResults();
-
-            UpdateBoardElements(move, eval);
-
-            // Next Turn
-            yield return new WaitForSeconds(0.2f);
-            tmr.ClockUnfreeze();
-            Side2Move ^= 1;
-        }
-
-        GameOverScreen(state);
-    }
-
-
-    public void
-    UpdateBoardElements(int move, float eval)
-    {
-        tmr.SwitchPlayer();
-        tmr.ClockFreeze();
-
-        BoardPosition.MakeMove(move);
-        Data.Add(move, eval, tmr.ChessClocks[Side2Move ^ 1],
-            BoardPosition.GenerateHashKey(ref cs.HashIndex) );
-
-        bh.BoardReset(false);
-        bh.MarkPlayedMove(move);
-        bh.Recreate(ref BoardPosition);
-    }
-
-
-    private void
-    OnApplicationQuit()
-    {
-        if (Players[0] != null) Players[0].Stop();
-        if (Players[1] != null) Players[1].Stop();
-
-        Application.Quit();
-    }
-}
+} */

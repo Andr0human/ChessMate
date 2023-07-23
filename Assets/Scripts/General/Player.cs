@@ -11,12 +11,15 @@ public interface IPlayer
     (int, float) GetResults();
 
     void Stop() {}
+
+    bool MoveFound();
 }
 
 
 public class ChessEngine : IPlayer
 {
-    private Core cs;
+    private   OpeningBook ob;
+    private MoveGenerator mg;
     private static Timer tmr;
 
     private Process    EngineProcess;
@@ -28,15 +31,15 @@ public class ChessEngine : IPlayer
     public bool    FixedMoveTime;
     public bool AllowOpeningBook;
 
-    public   int EngineMove;
-    public float EngineEval;
+    private   int EngineMove;
+    private float EngineEval;
 
 
     public
     ChessEngine(string __engine, string start_fen, bool __fixed_move_time=false,
         bool __allow_opening_book=true)
     {
-        cs  = GameObject.FindObjectOfType<Core>();
+        ob  = GameObject.FindObjectOfType<OpeningBook>();
         tmr = GameObject.FindObjectOfType<Timer>();
 
         EngineName       = __engine;
@@ -57,7 +60,7 @@ public class ChessEngine : IPlayer
         EngineProcess = new Process();
         ProcessStartInfo startInfo = new ProcessStartInfo(EnginePath)
         {
-            // WindowStyle = ProcessWindowStyle.Hidden,
+            WindowStyle = ProcessWindowStyle.Hidden,
             Arguments = "play input " + EngineInputPath + " output "
                 + EngineOutputPath + " position \"" + start_fen + "\"",
             WorkingDirectory = Application.streamingAssetsPath,
@@ -83,9 +86,9 @@ public class ChessEngine : IPlayer
         float current_weight = __pos.PositionWeight();
 
         float moves_to_go = max_moves -
-            (((max_weight - current_weight) / 400f) * 1.2f);
+            (((max_weight - current_weight) / 400f) * 1.3f);
 
-        return ((time_left + increment) / moves_to_go) + (increment / 2);
+        return ((time_left + increment) / moves_to_go) + (0.6f * increment);
     }
 
     public IEnumerator
@@ -95,17 +98,17 @@ public class ChessEngine : IPlayer
         EngineEval = 0;
 
         // Play Book Move if possible
-        if (AllowOpeningBook && cs.PositionInOpeningBook(ref position))
+        if (AllowOpeningBook && ob.PositionInOpeningBook(ref position))
         {
-            EngineMove = cs.PlayBookMove(ref position);
+            EngineMove = ob.PlayBookMove(ref position);
             EngineEval = 0;
             yield break;
         }
 
-        float search_time = FixedMoveTime ? 0.2f : DecideTimeForSearch(ref position);
+        float search_time = FixedMoveTime ? 0.5f : DecideTimeForSearch(ref position);
 
         WriteInput(search_time, last_move);
-        yield return new WaitUntil(ReadOutput);
+        yield return new WaitUntil( ReadOutput );
     }
 
     private void
@@ -128,6 +131,9 @@ public class ChessEngine : IPlayer
     private bool
     ReadOutput()
     {
+        if (EngineProcess == null)
+            return true;
+
         using (FileStream outputFileStream = new FileStream(EngineOutputPath, FileMode.Open, FileAccess.Read, FileShare.Write))
         using (StreamReader outputFileReader = new StreamReader(outputFileStream))
         {
@@ -146,8 +152,8 @@ public class ChessEngine : IPlayer
 
     public void
     Stop()
-    { 
-        if (!EngineProcess.HasExited)
+    {
+        if (EngineProcess != null && !EngineProcess.HasExited)
         {
             EngineProcess.CloseMainWindow();
             EngineProcess.WaitForExit();
@@ -156,8 +162,10 @@ public class ChessEngine : IPlayer
             EngineProcess.Dispose();
         }
 
-        // Delete both input and output files along with their meta files
+        // Set to null after stopping and disposing to prevent further access.
+        EngineProcess = null; 
 
+        // Delete both input and output files along with their meta files
         string  input_meta_file =  EngineInputPath + ".meta";
         string output_meta_file = EngineOutputPath + ".meta";
 
@@ -166,7 +174,12 @@ public class ChessEngine : IPlayer
 
         if (File.Exists(EngineOutputPath)) File.Delete(EngineOutputPath);
         if (File.Exists(output_meta_file)) File.Delete(output_meta_file);
+
     }
+
+    public bool
+    MoveFound()
+    { return EngineMove != 0; }
 
     public (int, float)
     GetResults()
@@ -179,8 +192,8 @@ public class HumanPlayer : IPlayer
     private UserInput ui;
     private MoveGenerator mg;
 
-    private int HumanMove;
-    private int HumanEval;
+    private   int HumanMove;
+    private float HumanEval;
 
     ChessBoard BoardPosition;
 
@@ -219,7 +232,8 @@ public class HumanPlayer : IPlayer
     public IEnumerator
     Play(ChessBoard position, int last_move)
     {
-        HumanMove = HumanEval = 0;
+        HumanMove = 0;
+        HumanEval = 0;
         BoardPosition = position;
 
         MoveList movelist = mg.GenerateMoves(ref BoardPosition);
@@ -230,5 +244,9 @@ public class HumanPlayer : IPlayer
         HumanMove = GenerateEncodeMoveForUser();
         HumanEval = 0;
     }
+
+    public bool
+    MoveFound()
+    { return HumanMove != 0; }
 }
 

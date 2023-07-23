@@ -1,54 +1,36 @@
-using System.Collections;
+/* using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 
 public class MatchManagerAIvsAI : MonoBehaviour
 {
-    [SerializeField] private         Core  cs;
-    [SerializeField] private BoardHandler  bh;
-    [SerializeField] private        Timer tmr;
+    public  Core  cs;
+    public Timer tmr;
 
     [SerializeField] private  bool FixedTimePerMove = false;
     [SerializeField] private  bool   RandomOpenings = false;
     [SerializeField] private  bool       CanAdjourn = false;
     [SerializeField] private float AdjournWinMargin =  5.0f;
 
-    public ChessBoard BoardPosition;
-    public  MatchData Data;
-
-    private IPlayer[] Players;
-    private int Side2Move;
-
-    public int EndState;
     public int EndResult;
     public int EndPrediction;
-
-
-    private void
-    Start()
-    {
-        cs.Init();
-        BoardPosition = new ChessBoard(cs.StartFen);
-        bh.InitializeBoard(ref BoardPosition);
-        Players = new IPlayer[2];
-    }
 
 
     public IEnumerator
     StartNewGame(string engine_white, string engine_black, List<int> opening_moves)
     {
-        Data = new MatchData();
+        cs.Data = new MatchData();
+        cs.Side2Move = 0;
+        cs.BoardPosition = new ChessBoard(cs.StartFen);
 
         if (RandomOpenings)
             yield return StartCoroutine( PlayOpening(opening_moves) );
 
-        Side2Move = (BoardPosition.pColor == 1) ? 0 : 1;
+        cs.Players[0] = new ChessEngine(engine_white, cs.BoardPosition.Fen(), FixedTimePerMove, false);
+        cs.Players[1] = new ChessEngine(engine_black, cs.BoardPosition.Fen(), FixedTimePerMove, false);
 
-        Players[0] = new ChessEngine(engine_white, BoardPosition.Fen(), FixedTimePerMove, false);
-        Players[1] = new ChessEngine(engine_black, BoardPosition.Fen(), FixedTimePerMove, false);
-
-        tmr.Init(Side2Move);
+        tmr.Init(cs.Side2Move);
         yield return StartCoroutine( PlayGame() );
     }
 
@@ -56,126 +38,76 @@ public class MatchManagerAIvsAI : MonoBehaviour
     private IEnumerator
     PlayOpening(List<int> opening)
     {
+        float time_left = tmr.AllotedTimePerSide;
+
         // Play all moves from the opening_book
         foreach (int move in opening)
         {
-            BoardPosition.MakeMove(move);
-            Data.Add(move, 0, tmr.AllotedTimePerSide, BoardPosition.GenerateHashKey(ref cs.HashIndex) );
+            cs.BoardPosition.MakeMove(move);
+            cs.Data.Add(move, 0, time_left, cs.BoardPosition.GenerateHashKey(ref cs.HashIndex) );
 
-            bh.Recreate(ref BoardPosition);
+            cs.bh.Recreate(ref cs.BoardPosition);
             yield return new WaitForSeconds(0.1f);
+
+            cs.Side2Move ^= 1;
         }
-        // yield break;
     }
 
-    //! TODO Cut the game immediately if one player time reaches zero.
 
     private IEnumerator
     PlayGame()
     {
-        while ((EndState = IsGameOver()) == -1)
+        while ((cs.EndState = cs.IsGameOver()) == -1)
         {
-            yield return StartCoroutine( Players[Side2Move].Play(BoardPosition, Data.LastPlayedMove()) );      
-            var (move, eval) = Players[Side2Move].GetResults();
+            // Let player make his move
+            yield return StartCoroutine( cs.RequestMove() ) ;
 
-            UpdateBoardElements(move, eval);
+            // Time runs out before player making a move
+            if (cs.TimeLeftForSearch() == false)
+                break;
 
+            // Retrieve player move
+            var (move, eval) = cs.Players[cs.Side2Move].GetResults();
+
+            // If no prediction made so far
+            if (EndPrediction == 0)
+                EndPrediction = PredictionCall();
+
+            // If we have a prediction and adjournment is allowed.
             if (CanAdjourn && (EndPrediction != 0))
                 yield break;
 
-            // Next Turn
-            yield return new WaitForSeconds(0.2f);
-            tmr.ClockUnfreeze();
-            Side2Move ^= 1;
+            // Update board elements after making move
+            yield return StartCoroutine( cs.UpdateBoardElements(move, eval) );
+
+            // Switch sides and next turn
+            cs.Side2Move ^= 1;
         }
 
-        EndResult = GetResultFromState();
-
-        if (Players[0] != null) Players[0].Stop();
-        if (Players[1] != null) Players[1].Stop();
-    }
-
-
-    public void
-    UpdateBoardElements(int move, float eval)
-    {
-        tmr.SwitchPlayer();
         tmr.ClockFreeze();
 
-        BoardPosition.MakeMove(move);
-        Data.Add(move, eval, tmr.ChessClocks[Side2Move ^ 1],
-            BoardPosition.GenerateHashKey(ref cs.HashIndex) );
-
-        bh.BoardReset(false);
-        bh.MarkPlayedMove(move);
-        bh.Recreate(ref BoardPosition);
-
-        if (EndPrediction == 0)
-            EndPrediction = PredictionCall();
-    }
-
-
-    private int
-    IsGameOver()
-    {
-        // Refer to GameOverScreen() for various-states.
-        MoveList moveslist = cs.mg.GenerateMoves(ref BoardPosition);
-
-        // checkmate/stalemate check
-        if (moveslist.moveCount == 0)
-            return (moveslist.KingAttackers > 0) ? 1 + (Side2Move ^ 1) : 3;
-
-        // Insufficient material check
-        if (cs.InsufficientMaterial(BoardPosition)) return 4;
-
-        // 3-fold repetition and 50-move-rule
-        if (Data.ThreeMoveRepetitionDraw()) return 5;
-        if (Data.FiftyMoveRuleDraw()) return 6;
-
-        // Check if lost on time
-        if (tmr.ChessClocks[Side2Move] < 0f)
-            return 7 + (Side2Move ^ 1);
-
-        return -1;
+        if (cs.Players[0] != null) cs.Players[0].Stop();
+        if (cs.Players[1] != null) cs.Players[1].Stop();
     }
 
 
     private int
     PredictionCall()
     {
-        var (__x, __y) = Data.LastEvalPair();
+        var (__x, __y) = cs.Data.LastEvalPair();
 
-        if (Mathf.Min(__x, __y) >  AdjournWinMargin)             // Both bots thinks white is winning
+        // Both bots thinks white is winning
+        if (Mathf.Min(__x, __y) >  AdjournWinMargin)
             return 1;
-        if (Mathf.Min(__x, __y) < -AdjournWinMargin)             // Both bots thinks black is winning
+        
+        // Both bots thinks black is winning
+        if (Mathf.Max(__x, __y) < -AdjournWinMargin)             
             return -1;
-        if (Data.DrawCounter(0.25f) > 60)
+
+        // If position is draw for last __x moves
+        if (cs.Data.DrawnPositionForContinuousMoves(0.25f, 60))
             return 2;
 
         return 0;
     }
-
-
-    private int
-    GetResultFromState()
-    {
-        // Game Ends in Adjournment
-        if (CanAdjourn && (EndPrediction != 0))
-            return EndPrediction;
-
-        if (EndState == 1 || EndState == 7) return  1;
-        if (EndState == 2 || EndState == 8) return -1;
-        
-        return 2;
-    }
-
-
-    private void
-    OnApplicationQuit()
-    {
-        if (Players[0] != null) Players[0].Stop();
-        if (Players[1] != null) Players[1].Stop();
-
-        Application.Quit();
-    }
-}
+} */
