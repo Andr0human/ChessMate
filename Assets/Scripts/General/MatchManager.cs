@@ -5,7 +5,7 @@ using System.Collections.Generic;
 
 public class MatchManager : MonoBehaviour
 {
-    [SerializeField] private MoveGenerator mg;
+    [SerializeField] public  MoveGenerator mg;
     [SerializeField] private Timer tmr;
     [SerializeField] private BoardHandler bh;
 
@@ -28,8 +28,6 @@ public class MatchManager : MonoBehaviour
     public void
     Start()
     {
-
-        //! TODO Init generate HashIndex
         TT.Init();
 
         BoardPosition = new ChessBoard(StartFen);
@@ -71,7 +69,7 @@ public class MatchManager : MonoBehaviour
             return (moveslist.KingAttackers > 0) ? 1 + (Side2Move ^ 1) : 3;
 
         // Insufficient material check
-        if (InsufficientMaterial(BoardPosition)) return 4;
+        if (InsufficientMaterial(ref BoardPosition)) return 4;
 
         // 3-fold repetition and 50-move-rule
         if (Data.ThreeMoveRepetitionDraw()) return 5;
@@ -91,13 +89,16 @@ public class MatchManager : MonoBehaviour
     }
 
     public bool
-    InsufficientMaterial(ChessBoard _cb)
+    InsufficientMaterial(ref ChessBoard pos)
     {
-        int wPawns = _cb.PpCnt(_cb.Pieces[8]), bPawns = _cb.PpCnt(_cb.Pieces[6]);
-        int wBishops = _cb.PpCnt(_cb.Pieces[9]), bBishops = _cb.PpCnt(_cb.Pieces[5]);
-        int wKnights = _cb.PpCnt(_cb.Pieces[10]), bKnights = _cb.PpCnt(_cb.Pieces[4]);
-        int wRooks = _cb.PpCnt(_cb.Pieces[11]), bRooks = _cb.PpCnt(_cb.Pieces[3]);
-        int wQueens = _cb.PpCnt(_cb.Pieces[12]), bQueens = _cb.PpCnt(_cb.Pieces[2]);
+        int w = 8, b = 0;
+
+        int wPawns   = pos.PopCount(pos.Pawn(w))  , bPawns   = pos.PopCount(pos.Pawn(b));
+        int wBishops = pos.PopCount(pos.Bishop(w)), bBishops = pos.PopCount(pos.Bishop(b));
+        int wKnights = pos.PopCount(pos.Knight(w)), bKnights = pos.PopCount(pos.Knight(b));
+        int wRooks   = pos.PopCount(pos.Rook(w))  , bRooks   = pos.PopCount(pos.Rook(b));
+        int wQueens  = pos.PopCount(pos.Queen(w)) , bQueens  = pos.PopCount(pos.Queen(b));
+
         int wPieces = wBishops + wKnights + wRooks + wQueens;
         int bPieces = bBishops + bKnights + bRooks + bQueens;
 
@@ -144,7 +145,6 @@ public class MatchManager : MonoBehaviour
         EndPrediction = 0;
         CanAdjourn = canAdjourn;
 
-        //! TODO Reset Clock and remove gameoverscreen
         EndScreen.SetActive(false);
 
         // Play the opening moves, if any
