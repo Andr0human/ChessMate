@@ -3,17 +3,18 @@ using UnityEngine;
 
 public class BoardHandler : MonoBehaviour
 {
-    private GameObject white_tile, black_tile;
+    private GameObject WhiteTile, BlackTile;
 
-    [SerializeField] private GameObject[] objects;
-    private readonly GameObject[] pieces = new GameObject[64];
-    private readonly GameObject[]  tiles = new GameObject[64];
+    [SerializeField]
+    private GameObject[] ChessPiece = new GameObject[12];
+    private readonly GameObject[] PieceAt = new GameObject[64];
+    private readonly GameObject[]  TileAt = new GameObject[64];
 
     public void
     InitializeBoard(ref ChessBoard _cb)
     {
-        white_tile = GameObject.Find("White Tile");
-        black_tile = GameObject.Find("Black Tile");
+        WhiteTile = GameObject.Find("White Tile");
+        BlackTile = GameObject.Find("Black Tile");
         StartCoroutine(BoardGenerator(_cb));
     }
 
@@ -35,41 +36,42 @@ public class BoardHandler : MonoBehaviour
         {
             int idx = arr[i];
             int x = idx & 7, y = (idx - x) >> 3;
-            if ((x + y) % 2 == 0) tiles[idx] = Instantiate(black_tile);
-            else tiles[idx] = Instantiate(white_tile);
-            tiles[idx].transform.position = new Vector3(x, y, 0);
+
+            if ((x + y) % 2 == 0) TileAt[idx] = Instantiate(BlackTile);
+            else TileAt[idx] = Instantiate(WhiteTile);
+
+            TileAt[idx].transform.position = new Vector3(x, y, 0);
             yield return new WaitForSeconds(0.01f);
         }
 
-        for (int i = 1; i <= 6; i++)
+        for (int piece_type = 1; piece_type <= 6; piece_type++)
         {
-            ulong tmp = _cb.Pieces[7 + i], val;
-            while (tmp != 0) {
-                val = tmp - (tmp & (tmp - 1));
-                tmp &= tmp - 1;
-                SpawnPiece(_cb.idxs[val % 67], i);
-                yield return new WaitForSeconds(0.01f);
-            }
-            tmp = _cb.Pieces[7 - i];
-            while (tmp != 0) {
-                val = tmp - (tmp & (tmp - 1));
-                tmp &= tmp - 1;
-                SpawnPiece(_cb.idxs[val % 67], -i);
-                yield return new WaitForSeconds(0.01f);
+            for (int side = 0; side <= 1; side++)
+            {
+                ulong piece = _cb.pieces[8 * side + piece_type];
+                while (piece != 0)
+                {
+                    int sq = _cb.LsbIdx(piece);
+                    SpawnPiece(sq, 8 * side + piece_type);
+                    piece &= piece - 1;
+                    yield return new WaitForSeconds(0.01f);
+                }
             }
         }
     }
 
     private void
-    SpawnPiece(int idx, int id)
+    SpawnPiece(int square, int piece)
     {
-        Destroy(pieces[idx]);
-        if (id == 0) return;
-        if (id > 0) id--;
-        id += 6;
-        int x = idx & 7, y = idx - x >> 3;
-        pieces[idx] = Instantiate(objects[id]);
-        pieces[idx].transform.position = new Vector3((float)x, (float)y, 0f);
+        Destroy(PieceAt[square]);
+        if ((piece & 7) == 0)
+            return;
+
+        int id = (piece & 7) + ((piece >> 3) * 6) - 1;
+        int x = square & 7, y = (square - x) >> 3;
+
+        PieceAt[square] = Instantiate(ChessPiece[id]);
+        PieceAt[square].transform.position = new Vector3((float)x, (float)y, 0f);
     }
 
     public void
@@ -77,7 +79,7 @@ public class BoardHandler : MonoBehaviour
     {
         for (int i = 0; i < 64; i++)
         {
-            tiles[i].GetComponent<TileSet>().reset_back(spare_last_move);
+            TileAt[i].GetComponent<TileSet>().reset_back(spare_last_move);
         }
     }
 
@@ -87,7 +89,7 @@ public class BoardHandler : MonoBehaviour
         for (int sq = 0; sq < 64; sq++)
         {
             if (((1UL << sq) & end) != 0)
-                tiles[sq].GetComponent<TileSet>().high_light();
+                TileAt[sq].GetComponent<TileSet>().high_light();
         }
     }
 
@@ -104,7 +106,7 @@ public class BoardHandler : MonoBehaviour
     MarkPlayedMove(int move)
     {
         int ip = move & 63, fp = (move >> 6) & 63;
-        tiles[ip].GetComponent<TileSet>().mark_start_move();
-        tiles[fp].GetComponent<TileSet>().mark_end_move();
+        TileAt[ip].GetComponent<TileSet>().mark_start_move();
+        TileAt[fp].GetComponent<TileSet>().mark_end_move();
     }
 }
