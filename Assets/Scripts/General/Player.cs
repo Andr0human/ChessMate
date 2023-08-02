@@ -72,7 +72,7 @@ public class ChessEngine : IPlayer
     private static (float, float)
     GetAvailableTime(ref ChessBoard __pos)
     {
-        int __side = -((__pos.pColor - 1) / 2);
+        int __side = __pos.color ^ 1;
         return (tmr.ChessClocks[__side], tmr.IncrementTime);
     }
 
@@ -204,21 +204,22 @@ public class HumanPlayer : IPlayer
         mg = GameObject.FindObjectOfType<MoveGenerator>();
     }
 
+
     private int
     GenerateEncodeMoveForUser()
     {
-        int color = BoardPosition.pColor;
+        int color = BoardPosition.color;
 
         int init_index = ui.InitSquare;
         int dest_index = ui.DestSquare;
 
-        int          piece = BoardPosition.board[init_index] * color;
-        int captured_piece = BoardPosition.board[dest_index] * (-color);
+        int          piece = BoardPosition.board[init_index] & 7;
+        int captured_piece = BoardPosition.board[dest_index] & 7;
         int promoted_piece = ui.PromotedPiece;
 
         int       pos_bits = (dest_index << 6) | init_index;
         int      type_bits = (captured_piece << 15) | (piece << 12);
-        int      color_bit = ((1 + color) / 2) << 20;
+        int      color_bit = color << 20;
         int promotion_bits = promoted_piece << 18;
 
         int move = promotion_bits | color_bit | type_bits | pos_bits;
