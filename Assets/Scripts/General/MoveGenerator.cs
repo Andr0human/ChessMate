@@ -1,942 +1,601 @@
 using UnityEngine;
 
+
 public class MoveGenerator : MonoBehaviour
 {
-    public LookupTable lt = new LookupTable();
-    private int kpos, ekpos, eps, color;
-    private readonly int ofs = 7;
-    ulong mkbd = 0, Apieces, Free_sq, Attacked_Squares;
+    private LookupTable lt = new LookupTable();
 
-    #region Utility
+    #region UTILS
 
-    public void SetPiece(ref ChessBoard cb)
+    private int
+    EncodeMove(ref ChessBoard pos, int ip, int fp)
     {
-        color = cb.pColor;
-        kpos = cb.idxs[cb.Pieces[ofs + 6 * color] % 67];
-        ekpos = cb.idxs[cb.Pieces[ofs - 6 * color] % 67];
-        eps = cb.csep & 127;
-        Apieces = cb.Pieces[ofs + 7] ^ cb.Pieces[ofs - 7];
-        Free_sq = ~Apieces;
+        int ipt = pos.board[ip] & 7;
+        int fpt = pos.board[fp] & 7;
+        int color_bit = pos.color << 20;
+
+        return color_bit | (fpt << 15) | (ipt << 12) | (fp << 6) | ip;
     }
 
-    ulong LSb(ulong N)
-    { return N ^ (N & (N - 1)); }
-
-    ulong MSb(ulong N)
+    public string
+    DecodeMove(int move)
     {
-        ulong res = 0;
-        while (N != 0)
-        {
-            res = N;
-            N &= N - 1;
-        }
-        return res;
+        int ip = move & 63;
+        int fp = (move >> 6) & 63;
+        int pt  = (move >> 12) & 7;
+        int cpt = (move >> 15) & 7;
+        int cl  = (move >> 20) & 1;
+
+        return "ip => " + ip.ToString() + " fp => " + fp.ToString()
+            + " pt => " + pt.ToString() + " cpt => " + cpt.ToString();
     }
 
-    public int PopCount(ulong N)
+    private bool
+    IsLegalMove(ChessBoard pos, int move)
     {
-        int res = 0;
-        while (N != 0)
-        {
-            N &= N - 1;
-            res++;
-        }
+        int own = pos.Own();
+        int emy = pos.Emy();
+        int side = own >> 3;
+        int k_sq = pos.IndexNo(pos.King(own));
+        int t_csep = pos.csep;
+
+        pos.MakeMove(move);
+
+        ulong apieces = pos.All();
+
+        ulong line_mask = RookAttackedSquares(ref pos, k_sq, apieces);
+        ulong diag_mask = BishopAttackedSquares(ref pos, k_sq, apieces);
+        ulong knight_mask = KnightAttackedSquares(k_sq);
+        ulong pawn_mask = lt.PawnCaptureMasks[side][k_sq];
+
+        bool res = (
+            (line_mask & (pos.Queen(emy) | pos.Rook(emy)))
+          | (diag_mask & (pos.Queen(emy) | pos.Bishop(emy)))
+          | (knight_mask & pos.Knight(emy))
+          | (pawn_mask & pos.Pawn(emy)) ) == 0;
+
+        pos.UnmakeMove(move, t_csep);
         return res;
     }
 
     private bool
-    EnPassantRecheck(int ip, ref ChessBoard cb)
+    InCheck(ref ChessBoard pos, int own)
     {
-        ulong erq = cb.Pieces[ofs - 5 * color] ^ cb.Pieces[ofs - 4 * color];
-        ulong Ap = Apieces ^ (1UL << ip) ^ (1UL << (eps - 8 * color));
-        ulong res = MSb(lt.LeftMasks[kpos] & Ap) | LSb(lt.RightMasks[kpos] & Ap);
-        if ((res & erq) != 0) return false;
-        return true;
+        int emy = own ^ 8;
+        int k_sq = pos.IndexNo(pos.King(own));
+
+        ulong erq = pos.Queen(emy) | pos.Rook(emy);
+        ulong ebq = pos.Queen(emy) | pos.Bishop(emy);
+
+        return (
+            (RookLegalMoves(ref pos, k_sq) & erq)
+          | (BishopLegalMoves(ref pos, k_sq) & ebq)
+          | (KnightLegalMoves(ref pos, k_sq) & pos.Knight(emy))
+          | (lt.PawnCaptureMasks[own / 8][k_sq] & pos.Pawn(emy))
+        ) != 0;
+    }
+
+    private void
+    AddToMovelist(ref ChessBoard pos, ref MoveList my_moves,
+        int ip, ulong endSquares, ulong pinned_squares)
+    {
+        ulong Rank18 = 18374686479671623935UL;
+        int pt = pos.board[ip] & 7;
+        ulong ip_bit = 1UL << ip;
+
+        while (endSquares != 0)
+        {
+            int fp = pos.LsbIdx(endSquares);
+            int move = EncodeMove(ref pos, ip, fp);
+            endSquares &= endSquares - 1;
+
+            if (((ip_bit & pinned_squares) != 0) && !IsLegalMove(pos, move))
+                continue;
+
+            my_moves.Add(move);
+
+            if ((pt == 1) && ((1UL << fp) & Rank18) != 0)
+            {
+                my_moves.Add(move | 0xC0000);
+                my_moves.Add(move | 0x80000);
+                my_moves.Add(move | 0x40000);
+            }
+        }
     }
 
     public string
-    PrintMove(int move, ref ChessBoard __b)
+    PrintMove(int move, ChessBoard pos)
     {
-        // string IndexToRow(int __x) => (__x + 49).ToString();
-        string IndexToCol(int __y) => (__y + 97).ToString();
-        // string IndexToSquare(int __x, int __y) => IndexToCol(__y) + IndexToRow(__x);
+        if (move == 0)
+            return "null";
+        
+        string IndexToRow(int __x) => ((char)(__x + 49)).ToString();
+        string IndexToCol(int __y) => ((char)(__y + 97)).ToString();
+        string IndexToSquare(int __x, int __y) => IndexToCol(__y) + IndexToRow(__x);
 
-        string res = "";
-        int ip = move & 63, fp = (move >> 6) & 63, ip_x = ip & 7, fp_x = fp & 7;
-        int ip_y = (ip - ip_x) >> 3, fp_y = (fp - fp_x) >> 3;
-        int _pt = (move >> 12) & 7, _cpt = (move >> 15) & 7, csep = __b.csep;
-        color = __b.board[ip] > 0 ? 1 : -1;
-        bool checks = false;
-        __b.MakeMove(move);
-        if (InCheck(ref __b)) checks = true;
-        __b.UnMakeMove(move, csep);
+        char[] piece_names = {'B', 'N', 'R', 'Q'};
 
-        Apieces = __b.Pieces[ofs + 7] ^ __b.Pieces[ofs - 7];
-        if (_pt == 1) {
-            int enp = 0;
-            if (fp_x - ip_x == 1 || ip_x - fp_x == 1 && _cpt == 0) enp = 1;
-            if (_cpt != 0 || enp != 0) {
-                res += IndexToCol(ip_x);
-                res += 'x';
-            }
-            res += IndexToCol(fp_x);
-            res += fp_y + 1;
-            int ppt = -1;
-            if ((color == 1 && fp_y == 7) || (color == -1 && fp_y == 0))
-                ppt = (move >> 18) & 3;
-            if (ppt == 0) res += "=B";
-            else if (ppt == 1) res += "=N";
-            else if (ppt == 2) res += "=R";
-            else if (ppt == 3) res += "=Q";
+        int ip = move & 63;
+        int fp = (move >> 6) & 63;
+
+        int ip_col = ip & 7;
+        int fp_col = fp & 7;
+
+        int ip_row = (ip - ip_col) >> 3;
+        int fp_row = (fp - fp_col) >> 3;
+
+        int ipt = ((move >> 12) & 7);
+        int fpt = ((move >> 15) & 7);
+
+        ulong apieces = pos.All();
+
+        int t_csep = pos.csep;
+        pos.MakeMove(move);
+        string gives_check = InCheck(ref pos, pos.Own()) ? "+" : "";
+        pos.UnmakeMove(move, t_csep);
+
+        string captures = "";
+
+        if (ipt == 1)
+        {
+            ulong Rank18 = 18374686479671623935UL;
+            string pawns_captures =
+                Mathf.Abs(ip_col - fp_col) == 1
+                ? (IndexToCol(ip_col) + "x") : "";
+
+            string dest_square = IndexToSquare(fp_row, fp_col);
+
+            if (((1UL << fp) & Rank18) == 0)
+                return pawns_captures + dest_square + gives_check;
+            
+            int ppt = (move >> 18) & 3;
+            string promoted_piece = "=" + piece_names[ppt];
+
+            return pawns_captures + dest_square + promoted_piece + gives_check;
         }
-        else if (_pt == 2) {
-            int x, y, idx = fp;
-            bool row = true, col = true, found = false;
-            ulong tmp = lt.UpRightMasks[idx] ^ lt.UpLeftMasks[idx] ^ lt.DownRightMasks[idx] ^ lt.DownLeftMasks[idx], tmp2;
+        if (ipt == 6)
+        {
+            ulong FileG = 4629771061636907072UL;
 
-            tmp2 = lt.RightMasks[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= lt.RightMasks[__b.idxs[LSb(tmp2) % 67]];
-            tmp2 = lt.LeftMasks[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= lt.LeftMasks[__b.idxs[MSb(tmp2) % 67]];
-            tmp2 = lt.UpMasks[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= lt.UpMasks[__b.idxs[LSb(tmp2) % 67]];
-            tmp2 = lt.DownMasks[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= lt.DownMasks[__b.idxs[MSb(tmp2) % 67]];
+            if (Mathf.Abs(ip_col - fp_col) == 2)
+                return (((1UL << fp) & FileG) != 0 ? "O-O" : "O-O-O") + gives_check;
 
-            res = "B";
-            tmp &= __b.Pieces[ofs + _pt * color];
-            tmp ^= 1UL << ip;
-            while (tmp != 0) {
-                found = true;
-                ulong val = tmp ^ (tmp & (tmp - 1));
-                tmp &= tmp - 1;
-                idx = __b.idxs[val % 67];
-                x = idx & 7; y = (idx - x) >> 3;
-                if (x == ip_x) col = false;
-                if (y == ip_y) row = false;
-            }
-            if (found) {
-                if (col) res += IndexToCol(ip_x);
-                else if (row) res += ip_y + 1;
-                else {
-                    res += IndexToCol(ip_x);
-                    res += ip_y + 1;
-                }
-            }
-            if (_cpt != 0) res += 'x';
-            res += IndexToCol(fp_x);
-            res += fp_y + 1;
+            captures = (fpt != 0) ? "x" : "";
+            return "K" + captures + IndexToSquare(fp_row, fp_col) + gives_check;
         }
-        else if (_pt == 3) {
-            int idx = fp, x, y;
-            bool row = true, col = true, found = false;
-            ulong tmp = lt.KnightMasks[idx];
-            res = "N";
-            tmp &= __b.Pieces[ofs + _pt * color];
-            tmp ^= 1UL << ip;
-            while (tmp != 0) {
-                found = true;
-                ulong val = tmp ^ (tmp & (tmp - 1));
-                tmp &= tmp - 1;
-                idx = __b.idxs[val % 67];
-                x = idx & 7; y = (idx - x) >> 3;
-                if (x == ip_x) col = false;
-                if (y == ip_y) row = false;
-            }
-            if (found) {
-                if (col) res += IndexToCol(ip_x);
-                else if (row) res += ip_y + 1;
-                else {
-                    res += IndexToCol(ip_x);
-                    res += ip_y + 1;
-                }
-            }
-            if (_cpt != 0) res += 'x';
-            res += IndexToCol(fp_x);
-            res += fp_y + 1;
+
+        int ipts = pos.Own() + ipt;
+        ulong pieces = 0;
+        ulong ipos = 1UL << ip;
+
+        if (ipt == 2)
+            pieces = (BishopAttackedSquares(ref pos, fp, apieces) & pos.pieces[ipts]) ^ ipos;
+        else if (ipt == 3)
+            pieces = (KnightAttackedSquares(fp) & pos.pieces[ipts]) ^ ipos;
+        else if (ipt == 4)
+            pieces =   (RookAttackedSquares(ref pos, fp, apieces) & pos.pieces[ipts]) ^ ipos;
+        else
+            pieces =  (QueenAttackedSquares(ref pos, fp, apieces) & pos.pieces[ipts]) ^ ipos;
+
+        captures = (fpt != 0) ? "x" : "";
+        string end_part = captures + IndexToSquare(fp_row, fp_col) + gives_check;
+
+        if (pieces == 0)
+            return piece_names[ipt - 2] + end_part;
+
+        bool row = true, col = true;
+
+        while (pieces > 0)
+        {
+            int __pos = pos.LsbIdx(pieces);
+            pieces &= pieces - 1;
+
+            int __pos_col = __pos & 7;
+            int __pos_row = (__pos - __pos_col) >> 3;
+
+            if (__pos_col == ip_col) col = false;
+            if (__pos_row == ip_row) row = false;
         }
-        else if (_pt == 4) {
-            int x, y, idx = fp;
-            bool __row = true, __col = true, found = false;
-            ulong tmp2, tmp = lt.RightMasks[idx] ^ lt.LeftMasks[idx] ^ lt.UpMasks[idx] ^ lt.DownMasks[idx];
 
-            tmp2 = lt.RightMasks[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= lt.RightMasks[__b.idxs[LSb(tmp2) % 67]];
-            tmp2 = lt.LeftMasks[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= lt.LeftMasks[__b.idxs[MSb(tmp2) % 67]];
-            tmp2 = lt.UpMasks[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= lt.UpMasks[__b.idxs[LSb(tmp2) % 67]];
-            tmp2 = lt.DownMasks[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= lt.DownMasks[__b.idxs[MSb(tmp2) % 67]];
+        if (col) return piece_names[ipt - 2] + IndexToCol(ip_col) + end_part;
+        if (row) return piece_names[ipt - 2] + IndexToRow(ip_row) + end_part;
 
-            res = "R";
-            tmp &= __b.Pieces[ofs + _pt * color];
-            tmp ^= 1UL << ip;
-            while (tmp != 0) {
-                found = true;
-                ulong val = tmp ^ (tmp & (tmp - 1));
-                tmp &= tmp - 1;
-                idx = __b.idxs[val % 67];
-                x = idx & 7; y = (idx - x) >> 3;
-                if (x == ip_x) __col = false;
-                if (y == ip_y) __row = false;
-            }
-            if (found) {
-                if (__col) res += IndexToCol(ip_x);
-                else if (__row) res += ip_y + 1;
-                else {
-                    res += IndexToCol(ip_x);
-                    res += ip_y + 1;
-                }
-            }
-            if (_cpt != 0) res += 'x';
-            res += IndexToCol(fp_x);
-            res += fp_y + 1;
+        return piece_names[ipt - 2] + IndexToSquare(ip_row, ip_col) + end_part;
+    }
+
+    #endregion
+
+
+    #region Attacked Squares
+
+    private ulong
+    PawnsAttackedSquares(ref ChessBoard pos, int side)
+    {
+        int inc = 2 * (side / 8) - 1;
+        ulong pawns = pos.Pawn(side);
+
+        return (side == 8)
+             ? ((pawns & 0x7F7F7F7F7F7F00UL) << (8 + inc)) | ((pawns & 0xFEFEFEFEFEFE00UL) << (8 - inc))
+             : ((pawns & 0x7F7F7F7F7F7F00UL) >> (8 + inc)) | ((pawns & 0xFEFEFEFEFEFE00UL) >> (8 - inc));
+    }
+
+    private ulong
+    KingAttackedSquares(ref ChessBoard pos, int side)
+    {
+        int sq = pos.IndexNo(pos.King(side));
+        return lt.KingMasks[sq];
+    }
+
+    private ulong
+    KnightAttackedSquares(int sq)
+    {
+        return lt.KnightMasks[sq];
+    }
+
+    private ulong
+    RookAttackedSquares(ref ChessBoard pos, int sq, ulong apieces)
+    {
+        ulong ans = lt.RightMasks[sq] ^ lt.LeftMasks[sq] ^ lt.UpMasks[sq] ^ lt.DownMasks[sq];
+
+        ans ^= lt.RightMasks[pos.LsbIdx(lt.RightMasks[sq] & apieces)];
+        ans ^= lt.LeftMasks[pos.MsbIdx(lt.LeftMasks[sq] & apieces)];
+        ans ^= lt.UpMasks[pos.LsbIdx(lt.UpMasks[sq] & apieces)];
+        ans ^= lt.DownMasks[pos.MsbIdx(lt.DownMasks[sq] & apieces)];
+
+        return ans;
+    }
+
+    private ulong
+    BishopAttackedSquares(ref ChessBoard pos, int sq, ulong apieces)
+    {
+        ulong ans = lt.UpRightMasks[sq] ^ lt.UpLeftMasks[sq] ^ lt.DownRightMasks[sq] ^ lt.DownLeftMasks[sq];
+
+        ans ^= lt.UpRightMasks[pos.LsbIdx(lt.UpRightMasks[sq] & apieces)];
+        ans ^= lt.UpLeftMasks[pos.LsbIdx(lt.UpLeftMasks[sq] & apieces)];
+        ans ^= lt.DownRightMasks[pos.MsbIdx(lt.DownRightMasks[sq] & apieces)];
+        ans ^= lt.DownLeftMasks[pos.MsbIdx(lt.DownLeftMasks[sq] & apieces)];
+
+        return ans;
+    }
+
+    private ulong
+    QueenAttackedSquares(ref ChessBoard pos, int sq, ulong apieces)
+    {
+        return RookAttackedSquares(ref pos, sq, apieces)
+           | BishopAttackedSquares(ref pos, sq, apieces);
+    }
+
+    #endregion
+
+
+    #region Legal Squares
+
+    private bool
+    EnpassantRecheck(int ip, ref ChessBoard pos)
+    {
+        int own = pos.Own();
+        int emy = pos.Emy();
+
+        int kpos = pos.IndexNo(pos.King(own));
+        int eps = pos.csep & 127;
+        ulong erq = pos.Queen(emy) | pos.Rook(emy);
+        ulong ebq = pos.Queen(emy) | pos.Bishop(emy);
+        ulong Ap  = pos.All() ^ ((1UL << ip) | (1UL << (eps - 8 * (2 * pos.color - 1))));
+
+        ulong res  = pos.Msb((    lt.LeftMasks[kpos] & Ap)) | pos.Lsb((lt.RightMasks[kpos] & Ap));
+        ulong tmp1 = pos.Msb((lt.DownLeftMasks[kpos] & Ap)) | pos.Lsb((lt.UpRightMasks[kpos] & Ap));
+        ulong tmp2 = pos.Lsb((  lt.UpLeftMasks[kpos] & Ap)) | pos.Msb((lt.DownRightMasks[kpos] & Ap));
+
+        if ((res & erq) != 0) return false;
+        // Board has to be invalid for this check
+        if (((tmp1 | tmp2) & ebq) != 0) return false;
+
+        return true;
+    }
+
+    private ulong
+    PawnLegalMoves(ref ChessBoard pos, int sq)
+    {
+        int side = pos.color;
+        int eps  = pos.csep & 127;
+        int sq2  = sq + 8 * (2 * side - 1);
+
+        ulong free_sq = ~pos.All();
+        ulong capt_sq = pos.All((side ^ 1) * 8);
+
+        ulong Rank2 = (side == 1) ? 65280UL : 71776119061217280UL;
+        ulong dest_squares = 0;
+
+        dest_squares |= lt.PawnMasks[side][sq] & free_sq;
+        dest_squares |= lt.PawnCaptureMasks[side][sq] & capt_sq;
+
+        // Double pawn push
+        if ((((1UL << sq) & Rank2) != 0) && (((1UL << sq2) & free_sq) != 0))
+            dest_squares |= lt.PawnMasks[side][sq2] & free_sq;
+
+        // EnPassant Move
+        if ((eps != 64) && (((1UL << eps) & lt.PawnCaptureMasks[side][sq]) != 0) && EnpassantRecheck(sq, ref pos))
+            dest_squares |= 1UL << eps;
+
+        return dest_squares;
+    }
+
+    private ulong
+    KnightLegalMoves(ref ChessBoard pos, int sq)
+    {
+        return KnightAttackedSquares(sq) & ~pos.All(pos.Own());
+    }
+
+    private ulong
+    BishopLegalMoves(ref ChessBoard pos, int sq)
+    {
+        ulong apieces = pos.All();
+        ulong ans = BishopAttackedSquares(ref pos, sq, apieces);
+        return ans & ~pos.All(pos.Own());
+    }
+
+    private ulong
+    RookLegalMoves(ref ChessBoard pos, int sq)
+    {
+        ulong apieces = pos.All();
+        ulong ans = RookAttackedSquares(ref pos, sq, apieces);
+        return ans & ~pos.All(pos.Own());
+    }
+
+    private ulong
+    QueenLegalMoves(ref ChessBoard pos, int sq)
+    {
+        return RookLegalMoves(ref pos, sq) | BishopLegalMoves(ref pos, sq);
+    }
+
+    #endregion
+
+
+    private ulong
+    PinnedSquares(ref ChessBoard pos)
+    {
+        int own = pos.Own();
+        int emy = pos.Emy();
+
+        int kp = pos.IndexNo(pos.King(own));
+        ulong _Ap = pos.All();
+        ulong erq = pos.Queen(emy) | pos.Rook(emy);
+        ulong ebq = pos.Queen(emy) | pos.Bishop(emy);
+
+        ulong LineMask =
+            lt.UpMasks[kp] | lt.DownMasks[kp] | lt.RightMasks[kp] | lt.LeftMasks[kp];
+
+        ulong DiagMask =
+            lt.UpRightMasks[kp] | lt.DownRightMasks[kp] | lt.UpLeftMasks[kp] | lt.DownLeftMasks[kp];
+
+        if ((LineMask & erq) == 0 && (DiagMask & ebq) == 0)
+            return 0;
+
+        return GeneratePinnedSquare(pos.Lsb, ref pos, erq, lt.RightMasks)
+             | GeneratePinnedSquare(pos.Msb, ref pos, erq, lt.LeftMasks)
+             | GeneratePinnedSquare(pos.Lsb, ref pos, erq, lt.UpMasks)
+             | GeneratePinnedSquare(pos.Msb, ref pos, erq, lt.DownMasks)
+             | GeneratePinnedSquare(pos.Lsb, ref pos, ebq, lt.UpRightMasks)
+             | GeneratePinnedSquare(pos.Lsb, ref pos, ebq, lt.UpLeftMasks)
+             | GeneratePinnedSquare(pos.Msb, ref pos, ebq, lt.DownRightMasks)
+             | GeneratePinnedSquare(pos.Msb, ref pos, ebq, lt.DownLeftMasks);
+    }
+
+    private ulong
+    GeneratePinnedSquare(System.Func<ulong, ulong> __f, ref ChessBoard pos, ulong emyPiece, ulong[] table)
+    {
+        int own = pos.Own();
+        int kpos = pos.IndexNo(pos.King(own));
+        ulong my_pieces = pos.All(own);
+        ulong list = table[kpos] & pos.All();
+
+        if (pos.PopCount(list) < 2) return 0;
+        
+        ulong piece1 = __f(list);
+        ulong piece2 = __f(list ^ piece1);
+
+        if (((piece1 & pos.All(own)) != 0) && ((piece2 & emyPiece) != 0))
+            return piece1;
+
+        return 0;
+    }
+
+    public void
+    GeneratePieceMoves(ref ChessBoard pos, ref MoveList my_moves, ulong KA, ulong valid_squares)
+    {
+        valid_squares = KA * valid_squares + (1 - KA) * ~(0UL);
+        
+        ulong pinned_squares = PinnedSquares(ref pos);
+        ulong my_pieces = pos.All(pos.Own()) ^ pos.King(pos.Own());
+
+        while (my_pieces != 0)
+        {
+            int sq = pos.LsbIdx(my_pieces);
+            int pt = pos.board[sq] & 7;
+            my_pieces &= my_pieces - 1;
+
+            ulong dest_squares = 0;
+
+            if (pt == 1) dest_squares =   PawnLegalMoves(ref pos, sq);
+            if (pt == 2) dest_squares = BishopLegalMoves(ref pos, sq);
+            if (pt == 3) dest_squares = KnightLegalMoves(ref pos, sq);
+            if (pt == 4) dest_squares =   RookLegalMoves(ref pos, sq);
+            if (pt == 5) dest_squares =  QueenLegalMoves(ref pos, sq);
+
+            dest_squares &= valid_squares;
+
+            AddToMovelist(ref pos, ref my_moves, sq, dest_squares, pinned_squares);
         }
-        else if (_pt == 5) {
-            int x, y, idx = fp;
-            bool __row = true, __col = true, found = false;
+    }
 
-            ulong tmp2, tmp = lt.RightMasks[idx] ^ lt.LeftMasks[idx] ^ lt.UpMasks[idx] ^ lt.DownMasks[idx]
-                ^ lt.UpRightMasks[idx] ^ lt.UpLeftMasks[idx] ^ lt.DownRightMasks[idx] ^ lt.DownLeftMasks[idx];
+    private ulong
+    GenerateAttackedSquares(ref ChessBoard pos)
+    {
+        ulong res = 0;
+        int own = pos.Own();
+        int emy = pos.Emy();
+        ulong apieces = (pos.All(own) | pos.All(emy)) ^ pos.King(own);
+        ulong emy_pieces = pos.All(emy);
 
-            tmp2 = lt.RightMasks[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= lt.RightMasks[__b.idxs[LSb(tmp2) % 67]];
-            tmp2 = lt.LeftMasks[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= lt.LeftMasks[__b.idxs[MSb(tmp2) % 67]];
-            tmp2 = lt.UpMasks[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= lt.UpMasks[__b.idxs[LSb(tmp2) % 67]];
-            tmp2 = lt.DownMasks[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= lt.DownMasks[__b.idxs[MSb(tmp2) % 67]];
-            tmp2 = lt.RightMasks[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= lt.RightMasks[__b.idxs[LSb(tmp2) % 67]];
-            tmp2 = lt.LeftMasks[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= lt.LeftMasks[__b.idxs[MSb(tmp2) % 67]];
-            tmp2 = lt.UpMasks[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= lt.UpMasks[__b.idxs[LSb(tmp2) % 67]];
-            tmp2 = lt.DownMasks[idx] & Apieces;
-            if (tmp2 != 0) tmp ^= lt.DownMasks[__b.idxs[MSb(tmp2) % 67]];
+        res |= PawnsAttackedSquares(ref pos, emy) | KingAttackedSquares(ref pos, emy);
 
-            res = "Q";
-            tmp &= __b.Pieces[ofs + _pt * color];
-            tmp ^= 1UL << ip;
-            while (tmp != 0) {
-                found = true;
-                ulong val = tmp ^ (tmp & (tmp - 1));
-                tmp &= tmp - 1;
-                idx = __b.idxs[val % 67];
-                x = idx & 7; y = (idx - x) >> 3;
-                if (x == ip_x) __col = false;
-                if (y == ip_y) __row = false;
-            }
-            if (found) {
-                if (__col) res += IndexToCol(ip_x);
-                else if (__row) res += ip_y + 1;
-                else {
-                    res += IndexToCol(ip_x);
-                    res += ip_y + 1;
-                }
-            }
-            if (_cpt != 0) res += 'x';
-            res += IndexToCol(fp_x);
-            res += fp_y + 1;
+        while (emy_pieces != 0)
+        {
+            int sq = pos.LsbIdx(emy_pieces);
+            int pt = pos.board[sq] & 7;
+            emy_pieces &= emy_pieces - 1;
+
+            if (pt == 2)
+                res |= BishopAttackedSquares(ref pos, sq, apieces);
+            else if (pt == 3)
+                res |= KnightAttackedSquares(sq);
+            else if (pt == 4)
+                res |=   RookAttackedSquares(ref pos, sq, apieces);
+            else if (pt == 5)
+                res |=  QueenAttackedSquares(ref pos, sq, apieces);
         }
-        else if (_pt == 6) {
-            if (Mathf.Abs(fp_x - ip_x) == 2) {
-                if (fp == 2 || fp == 58) res = "O-O-O";
-                else if (fp == 6 || fp == 62) res = "O-O";
-            }
-            else {
-                res += "K";
-                if (_cpt != 0) res += 'x';
-                res += IndexToCol(fp_x);
-                res += fp_y + 1;
-            }
-        }
-        if (checks) res += "+";
-
         return res;
     }
 
-    #endregion
 
-    #region Attacking Squares
-
-    private ulong PawnAttkinSq(ref ChessBoard cb)
+    private (int, ulong)
+    KingAttackers(ref ChessBoard pos, ulong attacked_squares)
     {
-        ulong Pwns = cb.Pieces[7 + color];
-        if (color == 1) return ((Pwns & 0x7F7F7F7F7F7F00) << 9) | ((Pwns & 0xFEFEFEFEFEFE00) << 7);
-        return ((Pwns & 0x7F7F7F7F7F7F00) >> 7) | ((Pwns & 0xFEFEFEFEFEFE00) >> 9);
-    }
+        int own = pos.Own();
+        int emy = pos.Emy();
+        int k_sq = pos.IndexNo(pos.King(own));
 
-    private ulong BishopAttkinSq(int idx, ref ChessBoard cb)
-    {
-        ulong res, ans = lt.UpRightMasks[idx] ^ lt.UpLeftMasks[idx] ^ lt.DownRightMasks[idx] ^ lt.DownLeftMasks[idx];
-        res = lt.UpRightMasks[idx] & Apieces;
-        if (res != 0) ans ^= lt.UpRightMasks[cb.idxs[LSb(res) % 67]];
-        res = lt.UpLeftMasks[idx] & Apieces;
-        if (res != 0) ans ^= lt.UpLeftMasks[cb.idxs[LSb(res) % 67]];
-        res = lt.DownRightMasks[idx] & Apieces;
-        if (res != 0) ans ^= lt.DownRightMasks[cb.idxs[MSb(res) % 67]];
-        res = lt.DownLeftMasks[idx] & Apieces;
-        if (res != 0) ans ^= lt.DownLeftMasks[cb.idxs[MSb(res) % 67]];
-        return ans;
-    }
+        if ((attacked_squares != 0) && (pos.King(own) & attacked_squares) == 0)
+            return (0, attacked_squares);
 
-    private ulong KnightAttkinSq(int idx)
-    {
-        return lt.KnightMasks[idx];
-    }
+        ulong apieces = pos.All();
+        int attackers = 0;
+        ulong attack_mask = 0;
 
-    private ulong RookAttkinSq(int idx, ref ChessBoard cb)
-    {
-        ulong res, ans = lt.RightMasks[idx] ^ lt.LeftMasks[idx] ^ lt.UpMasks[idx] ^ lt.DownMasks[idx];
-        res = lt.RightMasks[idx] & Apieces;
-        if (res != 0) ans ^= lt.RightMasks[cb.idxs[LSb(res) % 67]];
-        res = lt.LeftMasks[idx] & Apieces;
-        if (res != 0) ans ^= lt.LeftMasks[cb.idxs[MSb(res) % 67]];
-        res = lt.UpMasks[idx] & Apieces;
-        if (res != 0) ans ^= lt.UpMasks[cb.idxs[LSb(res) % 67]];
-        res = lt.DownMasks[idx] & Apieces;
-        if (res != 0) ans ^= lt.DownMasks[cb.idxs[MSb(res) % 67]];
-        return ans;
-    }
+        ulong pieces = RookLegalMoves(ref pos, k_sq) & (pos.Queen(emy) | pos.Rook(emy));
+        while (pieces != 0)
+        {
+            int p_sq = pos.LsbIdx(pieces);
+            attack_mask |= (RookLegalMoves(ref pos, k_sq)
+                         &  RookLegalMoves(ref pos, p_sq) ) | (1UL << p_sq);
 
-    #endregion
-
-    #region (KA = 0) Piece Movement
-
-    private ulong PawnMovement(int idx, ref ChessBoard cb) {
-        ulong ans = 0;
-        if (color == 1) {
-            ans |= lt.wPboard[idx] & Free_sq;
-            if (idx > 7 && idx < 16 && ((lt.wPboard[idx] ^ lt.wPboard[idx + 8]) & Apieces) == 0)
-                ans |= lt.wPboard[idx + 8];
-            ans |= lt.wpCboard[idx] & cb.Pieces[ofs - 7 * color];
-            if (eps != 64 && (lt.wpCboard[idx] & (1UL << eps)) != 0) {
-                if (EnPassantRecheck(idx, ref cb)) ans |= lt.wpCboard[idx] & (1UL << eps);
-            }
-            return ans;
-        }
-        ans |= lt.bPboard[idx] & Free_sq;
-        if (idx > 47 && ((lt.bPboard[idx] ^ lt.bPboard[idx - 8]) & Apieces) == 0)
-            ans |= lt.bPboard[idx - 8];
-        ans |= lt.bpCboard[idx] & cb.Pieces[ofs - 7 * color];
-        if (eps != 64 && (lt.bpCboard[idx] & (1UL << eps)) != 0) {
-            if (EnPassantRecheck(idx, ref cb)) ans |= lt.bpCboard[idx] & (1UL << eps);
-        }
-        return ans;
-    }
-
-    private ulong BishopMovement(int idx, ref ChessBoard cb) {
-        ulong res, ans = lt.UpRightMasks[idx] ^ lt.UpLeftMasks[idx] ^ lt.DownRightMasks[idx] ^ lt.DownLeftMasks[idx];
-
-        res = lt.UpRightMasks[idx] & Apieces;
-        if (res != 0) ans ^= lt.UpRightMasks[cb.idxs[LSb(res) % 67]];
-
-        res = lt.UpLeftMasks[idx] & Apieces;
-        if (res != 0) ans ^= lt.UpLeftMasks[cb.idxs[LSb(res) % 67]];
-
-        res = lt.DownRightMasks[idx] & Apieces;
-        if (res != 0) ans ^= lt.DownRightMasks[cb.idxs[MSb(res) % 67]];
-
-        res = lt.DownLeftMasks[idx] & Apieces;
-        if (res != 0) ans ^= lt.DownLeftMasks[cb.idxs[MSb(res) % 67]];
-
-        return ans ^ (ans & cb.Pieces[7 + 7 * color]);
-    }
-
-    private ulong RookMovement(int idx, ref ChessBoard cb) {
-        ulong res, ans = lt.RightMasks[idx] ^ lt.LeftMasks[idx] ^ lt.UpMasks[idx] ^ lt.DownMasks[idx];
-
-        res = lt.RightMasks[idx] & Apieces;
-        if (res != 0) ans ^= lt.RightMasks[cb.idxs[LSb(res) % 67]];
-
-        res = lt.LeftMasks[idx] & Apieces;
-        if (res != 0) ans ^= lt.LeftMasks[cb.idxs[MSb(res) % 67]];
-
-        res = lt.UpMasks[idx] & Apieces;
-        if (res != 0) ans ^= lt.UpMasks[cb.idxs[LSb(res) % 67]];
-
-        res = lt.DownMasks[idx] & Apieces;
-        if (res != 0) ans ^= lt.DownMasks[cb.idxs[MSb(res) % 67]];
-
-        return ans ^ (ans & cb.Pieces[7 + 7 * color]);
-    }
-
-    private ulong KnightMovement(int idx, ref ChessBoard cb) {
-        ulong ans = lt.KnightMasks[idx];
-        return ans ^ (ans & cb.Pieces[7 + 7 * color]);
-    }
-
-    private void PinnedPieces(ref ChessBoard cb, ref MoveList myMoves) {
-        ulong tmp, val1, val2, ans, rem_k = ~(1UL << (kpos));
-        ulong rq = cb.Pieces[ofs + 5 * color] ^ cb.Pieces[ofs + 4 * color];
-        ulong bq = cb.Pieces[ofs + 5 * color] ^ cb.Pieces[ofs + 2 * color];
-        ulong erq = cb.Pieces[ofs - 5 * color] ^ cb.Pieces[ofs - 4 * color];
-        ulong ebq = cb.Pieces[ofs - 5 * color] ^ cb.Pieces[ofs - 2 * color];
-        if (erq == 0 && ebq == 0) return;
-
-        tmp = lt.RightMasks[kpos] & Apieces;
-        val1 = LSb(tmp);
-        val2 = LSb(tmp ^ val1);
-        if ((val2 & erq) != 0) {
-            if ((val1 & rq) != 0) {
-                int idx = cb.idxs[val1 % 67];
-                myMoves.Add(idx, (lt.RightMasks[kpos] ^ lt.RightMasks[cb.idxs[val2 % 67]] ^ (1UL << idx)) & rem_k);
-            }
-            mkbd ^= val1;
+            attackers++;
+            pieces &= pieces - 1;
         }
 
-        tmp = lt.LeftMasks[kpos] & Apieces;
-        val1 = MSb(tmp);
-        val2 = MSb(tmp ^ val1);
-        if ((val2 & erq) != 0) {
-            if ((val1 & rq) != 0) {
-                int idx = cb.idxs[val1 % 67];
-                myMoves.Add(idx, (lt.LeftMasks[kpos] ^ lt.LeftMasks[cb.idxs[val2 % 67]] ^ (1UL << idx)) & rem_k);
-            }
-            mkbd ^= val1;
+        pieces = BishopLegalMoves(ref pos, k_sq) & (pos.Queen(emy) | pos.Bishop(emy));
+        while (pieces != 0)
+        {
+            int p_sq = pos.LsbIdx(pieces);
+            attack_mask |= (BishopLegalMoves(ref pos, k_sq)
+                         &  BishopLegalMoves(ref pos, p_sq) ) | (1UL << p_sq);
+
+            attackers++;
+            pieces &= pieces - 1;
         }
 
-        tmp = lt.UpMasks[kpos] & Apieces;
-        val1 = LSb(tmp);
-        val2 = LSb(tmp ^ val1);
-        if ((val2 & erq) != 0) {
-            if ((val1 & rq) != 0) {
-                int idx = cb.idxs[val1 % 67];
-                myMoves.Add(idx, (lt.UpMasks[kpos] ^ lt.UpMasks[cb.idxs[val2 % 67]] ^ (1UL << idx)) & rem_k);
-            }
-            else if (color == 1 && (val1 & cb.Pieces[8]) != 0) {
-                int idx = cb.idxs[val1 % 67];
-                ans = (lt.wPboard[idx] & Apieces) ^ lt.wPboard[idx];
-                if (idx < 16 && ((lt.wPboard[idx] ^ lt.wPboard[idx + 8]) & Apieces) == 0)
-                    ans |= lt.wPboard[idx + 8];
-                myMoves.Add(idx, ans);
-            }
-            else if (color == -1 && (val1 & cb.Pieces[6]) != 0) {
-                int idx = cb.idxs[val1 % 67];
-                ans = lt.bPboard[idx] & Free_sq;
-                if (idx > 47 && ((lt.bPboard[idx] ^ lt.bPboard[idx - 8]) & Apieces) == 0)
-                    ans |= lt.bPboard[idx - 8];
-                myMoves.Add(idx, ans);
-            }
-            mkbd ^= val1;
+        pieces = KnightLegalMoves(ref pos, k_sq) & pos.Knight(emy);
+        while (pieces != 0)
+        {
+            int p_sq = pos.LsbIdx(pieces);
+            attack_mask |= (KnightLegalMoves(ref pos, k_sq)
+                         &  KnightLegalMoves(ref pos, p_sq) ) | (1UL << p_sq);
+
+            attackers++;
+            pieces &= pieces - 1;
         }
 
-        tmp = lt.DownMasks[kpos] & Apieces;
-        val1 = MSb(tmp);
-        val2 = MSb(tmp ^ val1);
-        if ((val2 & erq) != 0) {
-            if ((val1 & rq) != 0) {
-                int idx = cb.idxs[val1 % 67];
-                myMoves.Add(idx, (lt.DownMasks[kpos] ^ lt.DownMasks[cb.idxs[val2 % 67]] ^ (1UL << idx)) & rem_k);
-            }
-            else if (color == -1 && (val1 & cb.Pieces[6]) != 0) {
-                int idx = cb.idxs[val1 % 67];
-                ans = lt.bPboard[idx] & Free_sq;
-                if (idx > 47 && ((lt.bPboard[idx] ^ lt.bPboard[idx - 8]) & Apieces) == 0)
-                    ans |= lt.bPboard[idx - 8];
-                myMoves.Add(idx, ans);
-            }
-            else if (color == 1 && (val1 & cb.Pieces[8]) != 0) {
-                int idx = cb.idxs[val1 % 67];
-                ans = lt.wPboard[idx] & Free_sq;
-                if (idx < 16 && ((lt.wPboard[idx] ^ lt.wPboard[idx + 8]) & Apieces) == 0)
-                    ans |= lt.wPboard[idx + 8];
-                myMoves.Add(idx, ans);
-            }
-            mkbd ^= val1;
-        }
-
-        tmp = lt.UpRightMasks[kpos] & Apieces;
-        val1 = LSb(tmp);
-        val2 = LSb(tmp ^ val1);
-        if ((val2 & ebq) != 0) {
-            if ((val1 & bq) != 0) {
-                int idx = cb.idxs[val1 % 67];
-                myMoves.Add(idx, (lt.UpRightMasks[kpos] ^ lt.UpRightMasks[cb.idxs[val2 % 67]] ^ (1UL << idx)) & rem_k);
-            }
-            else if (color == 1 && (val1 & cb.Pieces[8]) != 0) {
-                int idx = cb.idxs[val1 % 67];
-                myMoves.Add(idx, lt.wpCboard[idx] & val2);
-                if (eps != 64 && (((lt.UpRightMasks[kpos] ^ lt.UpRightMasks[cb.idxs[val2 % 67]]) & (1UL << eps)) != 0))
-                    myMoves.Add(idx, lt.wpCboard[idx] & (1UL << eps));
-            }
-            mkbd ^= val1;
-        }
-        tmp = lt.UpLeftMasks[kpos] & Apieces;
-        val1 = LSb(tmp);
-        val2 = LSb(tmp ^ val1);
-        if ((val2 & ebq) != 0) {
-            if ((val1 & bq) != 0) {
-                int idx = cb.idxs[val1 % 67];
-                myMoves.Add(idx, (lt.UpLeftMasks[kpos] ^ lt.UpLeftMasks[cb.idxs[val2 % 67]] ^ (1UL << idx)) & rem_k);
-            }
-            else if (color == 1 && (val1 & cb.Pieces[8]) != 0) {
-                int idx = cb.idxs[val1 % 67];
-                myMoves.Add(idx, lt.wpCboard[idx] & val2);
-                if (eps != 64 && (((lt.UpLeftMasks[kpos] ^ lt.UpLeftMasks[cb.idxs[val2 % 67]]) & (1UL << eps)) != 0))
-                    myMoves.Add(idx, lt.wpCboard[idx] & (1UL << eps));
-            }
-            mkbd ^= val1;
-        }
-
-        tmp = lt.DownRightMasks[kpos] & Apieces;
-        val1 = MSb(tmp);
-        val2 = MSb(tmp ^ val1);
-        if ((val2 & ebq) != 0) {
-            if ((val1 & bq) != 0) {
-                int idx = cb.idxs[val1 % 67];
-                myMoves.Add(idx, (lt.DownRightMasks[kpos] ^ lt.DownRightMasks[cb.idxs[val2 % 67]] ^ (1UL << idx)) & rem_k);
-            }
-            else if (color == -1 && (val1 & cb.Pieces[6]) != 0) {
-                int idx = cb.idxs[val1 % 67];
-                myMoves.Add(idx, lt.bpCboard[idx] & val2);
-                if (eps != 64 && (((lt.DownRightMasks[kpos] ^ lt.DownRightMasks[cb.idxs[val2 % 67]]) & (1UL << eps)) != 0))
-                    myMoves.Add(idx, lt.bpCboard[idx] & (1UL << eps));
-            }
-            mkbd ^= val1;
-        }
-
-        tmp = lt.DownLeftMasks[kpos] & Apieces;
-        val1 = MSb(tmp);
-        val2 = MSb(tmp ^ val1);
-        if ((val2 & ebq) != 0) {
-            if ((val1 & bq) != 0) {
-                int idx = cb.idxs[val1 % 67];
-                myMoves.Add(idx, (lt.DownLeftMasks[kpos] ^ lt.DownLeftMasks[cb.idxs[val2 % 67]] ^ (1UL << idx)) & rem_k);
-            }
-            else if (color == -1 && (val1 & cb.Pieces[6]) != 0) {
-                int idx = cb.idxs[val1 % 67];
-                myMoves.Add(idx, lt.bpCboard[idx] & val2);
-                if (eps != 64 && (((lt.DownLeftMasks[kpos] ^ lt.DownLeftMasks[cb.idxs[val2 % 67]]) & (1UL << eps)) != 0))
-                    myMoves.Add(idx, lt.bpCboard[idx] & (1UL << eps));
-            }
-            mkbd ^= val1;
-        }
-
-        return;
-    }
-
-    public void Ka_zero_pieceMovement(ref ChessBoard cb, ref MoveList myMoves) {
-        mkbd = 0;
-        PinnedPieces(ref cb, ref myMoves);
-        ulong tmp, val, marked_piece = mkbd & cb.Pieces[ofs + 7 * color];
-        int idx;
-
-        tmp = marked_piece;
-        while (tmp != 0) {
-            val = tmp ^ (tmp & (tmp - 1));
-            tmp &= tmp - 1;
-            cb.Pieces[ofs + cb.board[cb.idxs[val % 67]]] ^= val;
-        }
-
-        tmp = cb.Pieces[ofs + color];               ////// Pawns
-        while (tmp != 0) {
-            val = tmp ^ (tmp & (tmp - 1));
-            tmp &= tmp - 1;
-            idx = cb.idxs[val % 67];
-            myMoves.Add(idx, PawnMovement(idx, ref cb));
-        }
-
-        tmp = cb.Pieces[ofs + 2 * color];           ////// Bishops
-        while (tmp != 0) {
-            val = tmp ^ (tmp & (tmp - 1));
-            tmp &= tmp - 1;
-            idx = cb.idxs[val % 67];
-            myMoves.Add(idx, BishopMovement(idx, ref cb));
-        }
-
-        tmp = cb.Pieces[ofs + 3 * color];           ////// Knights
-        while (tmp != 0) {
-            val = tmp ^ (tmp & (tmp - 1));
-            tmp &= tmp - 1;
-            idx = cb.idxs[val % 67];
-            myMoves.Add(idx, KnightMovement(idx, ref cb));
-        }
-
-        tmp = cb.Pieces[ofs + 4 * color];           ////// Rooks
-        while (tmp != 0) {
-            val = tmp ^ (tmp & (tmp - 1));
-            tmp &= tmp - 1;
-            idx = cb.idxs[val % 67];
-            myMoves.Add(idx, RookMovement(idx, ref cb));
-        }
-
-        tmp = cb.Pieces[ofs + 5 * color];           ////// Queens
-        while (tmp != 0) {
-            val = tmp ^ (tmp & (tmp - 1));
-            tmp &= tmp - 1;
-            idx = cb.idxs[val % 67];
-            myMoves.Add(idx, BishopMovement(idx, ref cb) ^ RookMovement(idx, ref cb));
-        }
-
-        tmp = marked_piece;
-        while (tmp != 0) {
-            val = tmp ^ (tmp & (tmp - 1));
-            tmp &= tmp - 1;
-            cb.Pieces[ofs + cb.board[cb.idxs[val % 67]]] ^= val;
-        }
-
-        return;
-    }
-
-    #endregion
-
-    #region (KA = 1) Piece Movement
-
-    #region TypeC
-
-    private ulong RMovesC(int idx, ulong res) {
-        if ((LSb(lt.RightMasks[idx] & Apieces) & res) != 0) return res;
-        if ((MSb(lt.LeftMasks[idx] & Apieces) & res) != 0) return res;
-        if ((LSb(lt.UpMasks[idx] & Apieces) & res) != 0) return res;
-        if ((MSb(lt.DownMasks[idx] & Apieces) & res) != 0) return res;
-        return 0;
-    }
-
-    private ulong BMovesC(int idx, ulong res) {
-        if ((LSb(lt.UpRightMasks[idx] & Apieces) & res) != 0) return res;
-        if ((LSb(lt.UpLeftMasks[idx] & Apieces) & res) != 0) return res;
-        if ((MSb(lt.DownRightMasks[idx] & Apieces) & res) != 0) return res;
-        if ((MSb(lt.DownLeftMasks[idx] & Apieces) & res) != 0) return res;
-        return 0;
-    }
-
-    private ulong NMovesC(int idx, ulong res) {
-        if ((lt.KnightMasks[idx] & res) != 0) return res;
-        return 0;
-    }
-
-    private ulong PMovesC(int idx, ulong res) {
-        if (color == 1) {
-            if ((lt.wpCboard[idx] & res) != 0) return res;
-            if (eps != 64 && (lt.wpCboard[idx] & (1UL << eps)) != 0) return (1UL << eps);
-        }
-        if (color == -1) {
-            if ((lt.bpCboard[idx] & res) != 0) return res;
-            if (eps != 64 && (lt.bpCboard[idx] & (1UL << eps)) != 0) return (1UL << eps);
-        }
-        return 0;
-    }
-
-    private void pieceMovesTypeC(int idx, int type, ref MoveList myMoves, ref KAinfo atk) {
-        if (type == 1) myMoves.Add(idx, PMovesC(idx, atk.ppos));
-        else if (type == 2) myMoves.Add(idx, BMovesC(idx, atk.ppos));
-        else if (type == 3) myMoves.Add(idx, NMovesC(idx, atk.ppos));
-        else if (type == 4) myMoves.Add(idx, RMovesC(idx, atk.ppos));
-        else if (type == 5) myMoves.Add(idx, RMovesC(idx, atk.ppos) | BMovesC(idx, atk.ppos));
-        return;
-    }
-
-    #endregion
-
-    private void PieceMovesTypeS(int idx, int type, ref ChessBoard cb, ref MoveList myMoves, ulong area) {
-        if (type == 1) myMoves.Add(idx, PawnMovement(idx, ref cb) & area);
-        else if (type == 2) myMoves.Add(idx, BishopMovement(idx, ref cb) & area);
-        else if (type == 3) myMoves.Add(idx, lt.KnightMasks[idx] & area);
-        else if (type == 4) myMoves.Add(idx, RookMovement(idx, ref cb) & area);
-        else if (type == 5)
-            myMoves.Add(idx, (RookMovement(idx, ref cb) & area) | (BishopMovement(idx, ref cb) & area));
-        return;
-    }
-
-    private void Ka_PinnedPieces(ref ChessBoard cb) {
-        ulong tmp, v1, v2, OwnP = cb.Pieces[7 + 7 * color];
-        ulong erq = cb.Pieces[ofs - 5 * color] | cb.Pieces[ofs - 4 * color];
-        ulong ebq = cb.Pieces[ofs - 5 * color] | cb.Pieces[ofs - 2 * color];
-
-        tmp = lt.RightMasks[kpos] & Apieces;
-        v1 = LSb(tmp); v2 = LSb(tmp ^ v1);
-        if ((v1 & OwnP) != 0 && (v2 & erq) != 0) mkbd ^= v1;
-
-        tmp = lt.LeftMasks[kpos] & Apieces;
-        v1 = MSb(tmp); v2 = MSb(tmp ^ v1);
-        if ((v1 & OwnP) != 0 && (v2 & erq) != 0) mkbd ^= v1;
-
-        tmp = lt.UpMasks[kpos] & Apieces;
-        v1 = LSb(tmp); v2 = LSb(tmp ^ v1);
-        if ((v1 & OwnP) != 0 && (v2 & erq) != 0) mkbd ^= v1;
-
-        tmp = lt.DownMasks[kpos] & Apieces;
-        v1 = MSb(tmp); v2 = MSb(tmp ^ v1);
-        if ((v1 & OwnP) != 0 && (v2 & erq) != 0) mkbd ^= v1;
-
-        tmp = lt.UpRightMasks[kpos] & Apieces;
-        v1 = LSb(tmp); v2 = LSb(tmp ^ v1);
-        if ((v1 & OwnP) != 0 && (v2 & ebq) != 0) mkbd ^= v1;
-
-        tmp = lt.UpLeftMasks[kpos] & Apieces;
-        v1 = LSb(tmp); v2 = LSb(tmp ^ v1);
-        if ((v1 & OwnP) != 0 && (v2 & ebq) != 0) mkbd ^= v1;
-
-        tmp = lt.DownRightMasks[kpos] & Apieces;
-        v1 = MSb(tmp); v2 = MSb(tmp ^ v1);
-        if ((v1 & OwnP) != 0 && (v2 & ebq) != 0) mkbd ^= v1;
-
-        tmp = lt.DownLeftMasks[kpos] & Apieces;
-        v1 = MSb(tmp); v2 = MSb(tmp ^ v1);
-        if ((v1 & OwnP) != 0 && (v2 & ebq) != 0) mkbd ^= v1;
-
-        return;
-    }
-
-    public void Ka_pieceMovement(ref ChessBoard cb, ref MoveList myMoves, ref KAinfo atk) {
-        ulong val, tmp;
-        mkbd = 0;
-        Ka_PinnedPieces(ref cb);
-
-        for (int i = 1; i < 6; i++) {
-            tmp = cb.Pieces[ofs + i * color];
-            while (tmp != 0) {
-                val = tmp ^ (tmp & (tmp - 1));
-                tmp &= tmp - 1;
-                int idx = cb.idxs[val % 67];
-                if ((mkbd & val) == 0) {
-                    if (atk.area == 0) pieceMovesTypeC(idx, i, ref myMoves, ref atk);
-                    else PieceMovesTypeS(idx, i, ref cb, ref myMoves, atk.area);
-                }
-            }
-        }
-        return;
-    }
-
-    #endregion
-
-    #region King Move Generation
-
-    public bool InCheck(ref ChessBoard cb) {
-
-        int cl = cb.pColor, idx = cb.idxs[cb.Pieces[ofs + 6 * cl] % 67];
-        ulong Apieces = cb.Pieces[ofs + 7] ^ cb.Pieces[ofs - 7];
-        ulong erq = cb.Pieces[ofs - 4 * cl] ^ cb.Pieces[ofs - 5 * cl];
-        ulong ebq = cb.Pieces[ofs - 2 * cl] ^ cb.Pieces[ofs - 5 * cl];
-
-        ulong res, ans = lt.RightMasks[idx] ^ lt.LeftMasks[idx] ^ lt.UpMasks[idx] ^ lt.DownMasks[idx];
-        res = lt.RightMasks[idx] & Apieces;
-        if (res != 0) ans ^= lt.RightMasks[cb.idxs[LSb(res) % 67]];
-        res = lt.LeftMasks[idx] & Apieces;
-        if (res != 0) ans ^= lt.LeftMasks[cb.idxs[MSb(res) % 67]];
-        res = lt.UpMasks[idx] & Apieces;
-        if (res != 0) ans ^= lt.UpMasks[cb.idxs[LSb(res) % 67]];
-        res = lt.DownMasks[idx] & Apieces;
-        if (res != 0) ans ^= lt.DownMasks[cb.idxs[MSb(res) % 67]];
-        if ((ans & erq) != 0) return true;
-
-        ans = lt.RightMasks[idx] ^ lt.LeftMasks[idx] ^ lt.UpMasks[idx] ^ lt.DownMasks[idx];
-        res = lt.UpRightMasks[idx] & Apieces;
-        if (res != 0) ans ^= lt.UpRightMasks[cb.idxs[LSb(res) % 67]];
-        res = lt.UpLeftMasks[idx] & Apieces;
-        if (res != 0) ans ^= lt.UpLeftMasks[cb.idxs[LSb(res) % 67]];
-        res = lt.DownRightMasks[idx] & Apieces;
-        if (res != 0) ans ^= lt.DownRightMasks[cb.idxs[MSb(res) % 67]];
-        res = lt.DownLeftMasks[idx] & Apieces;
-        if (res != 0) ans ^= lt.DownLeftMasks[cb.idxs[MSb(res) % 67]];
-        if ((ans & ebq) != 0) return true;
-
-        ans = lt.KnightMasks[idx];
-        if ((ans & cb.Pieces[ofs - 3 * cl]) != 0) return true;
-
-        ans = cl == 1 ? lt.wpCboard[idx] : lt.bpCboard[idx];
-        if ((ans & cb.Pieces[ofs - cl]) != 0) return true;
-
-        return false;
-    }
-
-    public void GenerateAttackedSquares(ref ChessBoard cb)
-    {
-        ulong ans = 0, tmp, val;
-        color *= -1;
-        Apieces ^= 1UL << kpos;
-        ans |= PawnAttkinSq(ref cb);
-        tmp = cb.Pieces[ofs + 2 * color];
-        while (tmp != 0) {
-            val = tmp ^ (tmp & (tmp - 1));
-            tmp &= tmp - 1;
-            ans |= BishopAttkinSq(cb.idxs[val % 67], ref cb);
-        }
-        tmp = cb.Pieces[ofs + 3 * color];
-        while (tmp != 0) {
-            val = tmp ^ (tmp & (tmp - 1));
-            tmp &= tmp - 1;
-            ans |= KnightAttkinSq(cb.idxs[val % 67]);
-        }
-        tmp = cb.Pieces[ofs + 4 * color];
-        while (tmp != 0) {
-            val = tmp ^ (tmp & (tmp - 1));
-            tmp &= tmp - 1;
-            ans |= RookAttkinSq(cb.idxs[val % 67], ref cb);
-        }
-        tmp = cb.Pieces[ofs + 5 * color];
-        while (tmp != 0) {
-            val = tmp ^ (tmp & (tmp - 1));
-            tmp &= tmp - 1;
-            ans |= RookAttkinSq(cb.idxs[val % 67], ref cb) | BishopAttkinSq(cb.idxs[val % 67], ref cb);
-        }
-        ans |= lt.KingMasks[ekpos];
-        color *= -1;
-        Apieces ^= 1UL << kpos;
-        Attacked_Squares = ans;
-        return;
-    }
-
-    public KAinfo FindKingAttackers(ref ChessBoard cb)
-    {
-        KAinfo info = new KAinfo();
-        if (((1UL << kpos) & Attacked_Squares) == 0) return info;
-        ulong res, rem_k = ~(1UL << (kpos));
-        ulong rq = cb.Pieces[ofs - 5 * color] | cb.Pieces[ofs - 4 * color];
-        ulong bq = cb.Pieces[ofs - 5 * color] | cb.Pieces[ofs - 2 * color];
-        if ((lt.UpMasks[kpos] & rq) != 0) {
-            res = LSb(lt.UpMasks[kpos] & Apieces);
-            if ((rq & res) != 0) {
-                int pos = cb.idxs[(rq & res) % 67];
-                info.Add((lt.UpMasks[kpos] ^ lt.UpMasks[pos]) & rem_k, 0);
-            }
-        }
-
-        if ((lt.DownMasks[kpos] & rq) != 0) {
-            res = MSb(lt.DownMasks[kpos] & Apieces);
-            if ((rq & res) != 0) {
-                int pos = cb.idxs[(rq & res) % 67];
-                info.Add((lt.DownMasks[kpos] ^ lt.DownMasks[pos]) & rem_k, 0);
-            }
-        }
-
-        if ((lt.LeftMasks[kpos] & rq) != 0) {
-            res = MSb(lt.LeftMasks[kpos] & Apieces);
-            if ((rq & res) != 0) {
-                int pos = cb.idxs[(rq & res) % 67];
-                info.Add((lt.LeftMasks[kpos] ^ lt.LeftMasks[pos]) & rem_k, 0);
-            }
-        }
-
-        if ((lt.RightMasks[kpos] & rq) != 0) {
-            res = LSb(lt.RightMasks[kpos] & Apieces);
-            if ((rq & res) != 0) {
-                int pos = cb.idxs[(rq & res) % 67];
-                info.Add((lt.RightMasks[kpos] ^ lt.RightMasks[pos]) & rem_k, 0);
-            }
-        }
-
-        if ((lt.UpRightMasks[kpos] & bq) != 0) {
-            res = LSb(lt.UpRightMasks[kpos] & Apieces);
-            if ((bq & res) != 0) {
-                int pos = cb.idxs[(bq & res) % 67];
-                info.Add((lt.UpRightMasks[kpos] ^ lt.UpRightMasks[pos]) & rem_k, 0);
-            }
-        }
-
-        if ((lt.DownLeftMasks[kpos] & bq) != 0) {
-            res = MSb(lt.DownLeftMasks[kpos] & Apieces);
-            if ((bq & res) != 0) {
-                int pos = cb.idxs[(bq & res) % 67];
-                info.Add((lt.DownLeftMasks[kpos] ^ lt.DownLeftMasks[pos]) & rem_k, 0);
-            }
-        }
-
-        if ((lt.UpLeftMasks[kpos] & bq) != 0) {
-            res = LSb(lt.UpLeftMasks[kpos] & Apieces);
-            if ((bq & res) != 0) {
-                int pos = cb.idxs[(bq & res) % 67];
-                info.Add(lt.UpLeftMasks[kpos] ^ lt.UpLeftMasks[pos], 0);
-            }
-        }
-
-        if ((lt.DownRightMasks[kpos] & bq) != 0) {
-            res = MSb(lt.DownRightMasks[kpos] & Apieces);
-            if ((bq & res) != 0) {
-                int pos = cb.idxs[(bq & res) % 67];
-                info.Add(lt.DownRightMasks[kpos] ^ lt.DownRightMasks[pos], 0);
-            }
-        }
-
-        res = lt.KnightMasks[kpos] & cb.Pieces[ofs - 3 * color];
-        if (res != 0) info.Add(0, res);
-
-        if (color == 1) res = lt.wpCboard[kpos] & cb.Pieces[6];
-        else if (color == -1) res = lt.bpCboard[kpos] & cb.Pieces[8];
-        if (res != 0) info.Add(0, res);
-
-        return info;
-    }
-
-    public void KingMoves(ref ChessBoard cb, ref MoveList myMoves)
-    {
-        ulong ans, Ksquares = lt.KingMasks[kpos];
-        ulong opd = Apieces | Attacked_Squares;
-        ans = Ksquares ^ (Ksquares & (cb.Pieces[7 + 7 * color] | Attacked_Squares));
-        if (color == 1 && ((1UL << kpos) & Attacked_Squares) == 0) {
-            if ((cb.csep & 1024) != 0)
-                if ((96 & opd) == 0) ans ^= 64;
-            if ((cb.csep & 512) != 0)
-                if ((Apieces & 2) == 0 && (12 & opd) == 0) ans ^= 4;
-        }
-        if (color == -1 && ((1UL << kpos) & Attacked_Squares) == 0) {
-            if ((cb.csep & 256) != 0)
-                if ((opd & 0x6000000000000000) == 0) ans ^= 0x4000000000000000;
-            if ((cb.csep & 128) != 0)
-                if ((Apieces & 0x200000000000000) == 0 && (opd & 0xC00000000000000) == 0) ans ^= 0x400000000000000;
-        }
-        myMoves.Add(kpos, ans);
-        return;
-    }
-
-    #endregion
-
-
-    public MoveList GenerateMoves(ref ChessBoard __pos)
-    {
-        MoveList move_list = new MoveList(__pos.pColor);
-        SetPiece(ref __pos);
-        GenerateAttackedSquares(ref __pos);
+        ulong pawn_squares = lt.PawnCaptureMasks[own / 8][k_sq] & pos.Pawn(emy);
         
-        KAinfo ka_info = FindKingAttackers(ref __pos);
-        move_list.pColor = __pos.pColor;
-        move_list.KingAttackers = ka_info.attackers;
-        
-        
-        if (ka_info.attackers == 0)
-            Ka_zero_pieceMovement(ref __pos, ref move_list);
-        if (ka_info.attackers == 1)
-            Ka_pieceMovement(ref __pos, ref move_list, ref ka_info);
+        if (pawn_squares != 0)
+            attackers++;
+        attack_mask |= pawn_squares;
 
-        KingMoves(ref __pos, ref move_list);
-        return move_list;
+        return (attackers, attack_mask);
     }
+
+
+    private void
+    GenerateKingMoves(ref ChessBoard pos, ref MoveList my_moves, ulong attacked_sq)
+    {
+        int own = pos.Own();
+        int k_sq = pos.IndexNo(pos.King(own));
+        ulong k_bit = 1UL << k_sq;
+
+        ulong KingMask = lt.KingMasks[k_sq];
+        ulong apieces = pos.All();
+
+        ulong end_squares = KingMask & (~(pos.All(own) | attacked_sq));
+
+        AddToMovelist(ref pos, ref my_moves, k_sq, end_squares, 0);
+
+        if (((pos.csep & 1920) == 0) || ((k_bit & attacked_sq) != 0)) return;
+
+        ulong covered_squares = apieces | attacked_sq;
+
+        int shift      = 56 * (pos.color ^ 1);
+        ulong l_mid_sq = 2UL << shift;
+        ulong r_sq     = 96UL << shift;
+        ulong l_sq     = 12UL << shift;
+
+        int king_side  = 256 << (2 * pos.color);
+        int queen_side = 128 << (2 * pos.color);
+
+        end_squares = 0;
+
+        // Can castle king_side  and no pieces are in-between
+        if (((pos.csep & king_side) != 0) && ((r_sq & covered_squares) == 0))
+            end_squares |= 1UL << (6 + shift);
+
+        // Can castle queen_side and no pieces are in-between
+        if (((pos.csep & queen_side) != 0) && ((apieces & l_mid_sq) == 0) && ((l_sq & covered_squares) == 0))
+            end_squares |= 1UL << (2 + shift);
+
+        AddToMovelist(ref pos, ref my_moves, k_sq, end_squares, 0);
+    }
+
+
+    public MoveList
+    GenerateMoves(ref ChessBoard position)
+    {
+        MoveList my_moves = new MoveList(position.color);
+
+        ulong attacked_squares = GenerateAttackedSquares(ref position);
+        var (attackers, valid_squares) = KingAttackers(ref position, attacked_squares);
+        my_moves.KingAttackers = attackers;
+
+        if (attackers < 2)
+            GeneratePieceMoves(ref position, ref my_moves, (ulong)attackers, valid_squares);
+        
+        GenerateKingMoves(ref position, ref my_moves, attacked_squares);
+        return my_moves;
+    }
+
+
+    public ulong
+    BulkCount(ref ChessBoard pos, int depth)
+    {
+        if (depth <= 0)
+            return 1;
+
+        MoveList myMoves = GenerateMoves(ref pos);
+
+        if (depth == 1) {
+            return (ulong)myMoves.moves.Count;
+        }
+        
+        ulong answer = 0;
+
+        foreach (var move in myMoves.moves)
+        {
+            int t_csep = pos.csep;
+            pos.MakeMove(move);
+            answer += BulkCount(ref pos, depth - 1);
+            pos.UnmakeMove(move, t_csep);
+        }
+
+        return answer;
+    }
+
 }
 
-
-
-/*
-
-
-uint64_t
-bishop_atk_sq(int __pos, uint64_t _Ap)
-{
-    const auto area = [__pos, _Ap] (const uint64_t *table, const auto& __func)
-    { return table[__func(table[__pos] & _Ap)]; };
-
-    return plt::diag_Board[__pos] ^
-          (area(plt::ulBoard, lSb_idx) ^ area(plt::urBoard, lSb_idx)
-         ^ area(plt::dlBoard, mSb_idx) ^ area(plt::drBoard, mSb_idx));
-}
-
-uint64_t
-knight_atk_sq(int __pos, uint64_t _Ap)
-{ return plt::NtBoard[__pos] + (_Ap - _Ap); }
-
-uint64_t
-rook_atk_sq(int __pos, uint64_t _Ap)
-{
-    const auto area = [__pos, _Ap] (const uint64_t *table, const auto& __func)
-    { return table[__func(table[__pos] & _Ap)]; };
-
-    return plt::line_Board[__pos] ^
-          (area(plt::uBoard, lSb_idx) ^ area(plt::dBoard, mSb_idx)
-         ^ area(plt::rBoard, lSb_idx) ^ area(plt::lBoard, mSb_idx));
-}
-
-
-*/
