@@ -1,5 +1,6 @@
 using UnityEngine;
-using UnityEngine.UI; 
+using UnityEngine.UI;
+using System.Collections.Generic;
 
 public class DashBoard : MonoBehaviour
 {
@@ -74,7 +75,7 @@ public class DashBoard : MonoBehaviour
         // StartCoroutine(
         //     GameObject.FindObjectOfType<MatchManager>().StartNewGame(
         //         player_white, player_black, new List<int>(),
-        //         <FixedMoveTime>, true, false
+        //         false, true, false
         //     )
         // );
     }
@@ -86,4 +87,6 @@ public class DashBoard : MonoBehaviour
         //! TODO Exit Button (Calls to stop players)
     }
 
+
+    //! TODO Flip board to play from black side
 }

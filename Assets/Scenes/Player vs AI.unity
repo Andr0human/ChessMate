@@ -2616,13 +2616,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2bab0b1073dfc0a499dba0bc0bd372e9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  objects:
-  - {fileID: 846161968}
-  - {fileID: 846161967}
-  - {fileID: 846161966}
-  - {fileID: 846161965}
-  - {fileID: 846161964}
+  ChessPiece:
   - {fileID: 846161963}
+  - {fileID: 846161964}
+  - {fileID: 846161965}
+  - {fileID: 846161966}
+  - {fileID: 846161967}
+  - {fileID: 846161968}
   - {fileID: 846161962}
   - {fileID: 846161961}
   - {fileID: 846161960}
@@ -2698,9 +2698,12 @@ MonoBehaviour:
   mg: {fileID: 749713523}
   tmr: {fileID: 749713527}
   bh: {fileID: 749713525}
+  EndScreen: {fileID: 1926973903}
   Side2Move: 0
   EndState: 0
   EndPrediction: 0
+  test_fen: rnbQkbnr/3ppppp/p1p5/8/8/2P5/PP1PPPPP/RNB1KBNR b KQkq - 0 4
+  test_depth: 7
 --- !u!1 &760425337
 GameObject:
   m_ObjectHideFlags: 0

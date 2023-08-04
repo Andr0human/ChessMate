@@ -29,6 +29,7 @@ public class MatchManager : MonoBehaviour
     Start()
     {
         TT.Init();
+        GameObject.FindObjectOfType<OpeningBook>().GetOpeningBook();
 
         BoardPosition = new ChessBoard(StartFen);
         bh.InitializeBoard(ref BoardPosition);
@@ -43,12 +44,12 @@ public class MatchManager : MonoBehaviour
     PlayOpening(List<int> opening)
     {
         float time_left = tmr.AllotedTimePerSide;
-
         // Play all moves from the opening_book
         foreach (int move in opening)
         {
+            ulong prevHash = BoardPosition.hashvalue;
             BoardPosition.MakeMove(move);
-            Data.Add(move, 0, time_left, BoardPosition.GenerateHashKey());
+            Data.Add(move, 0, time_left, prevHash);
 
             bh.Recreate(ref BoardPosition);
             yield return new WaitForSeconds(0.1f);

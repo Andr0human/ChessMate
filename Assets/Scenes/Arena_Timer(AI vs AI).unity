@@ -3202,6 +3202,7 @@ GameObject:
   - component: {fileID: 1554426743}
   - component: {fileID: 1554426744}
   - component: {fileID: 1554426745}
+  - component: {fileID: 1554426746}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -3236,13 +3237,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2bab0b1073dfc0a499dba0bc0bd372e9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  objects:
-  - {fileID: 983725461}
-  - {fileID: 638468138}
-  - {fileID: 582942141}
-  - {fileID: 1566363115}
-  - {fileID: 914691636}
+  ChessPiece:
   - {fileID: 2133435636}
+  - {fileID: 914691636}
+  - {fileID: 1566363115}
+  - {fileID: 582942141}
+  - {fileID: 638468138}
+  - {fileID: 983725461}
   - {fileID: 580515135}
   - {fileID: 1836679440}
   - {fileID: 1987261286}
@@ -3293,6 +3294,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   mm: {fileID: 1554426744}
   GamesToPlay: 10
+  FixedTimePerGame: 30
+  IncrementPerGame: 1
   fixedTimePerMove: 0
   Adjournment: 0
   CurrentGameNumText: {fileID: 2026667992}
@@ -3338,6 +3341,20 @@ MonoBehaviour:
   ChessClocksText:
   - {fileID: 138001209}
   - {fileID: 280226876}
+--- !u!114 &1554426746
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1554426735}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d4ca8c56fd5409046a5c16fc5707b275, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  bh: {fileID: 1554426737}
+  mg: {fileID: 1554426739}
 --- !u!1 &1566363115 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 51614721084381701, guid: 9226d4902fab87a46b1171cf7f5337ab, type: 3}

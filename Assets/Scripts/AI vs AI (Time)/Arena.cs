@@ -26,45 +26,62 @@ public class Arena : MonoBehaviour
     private ArenaScoreSheet ScoreSheet;
     private Stopwatch sw;
 
-
-    private int
-    InterestingGame(int result, int prediction)
+    private string
+    InterestingGame(int result, int state, int prediction)
     {
         // Prediction made and failed
         if ((prediction != 0) && (result != prediction))
-            return Mathf.Abs(prediction);
+            return "win-loss prediction-failed";
 
         // If huge evaluation difference in more than 5 places in a game
         if (mm.Data.DifferentEvalCount(3f) > 5)
-            return 3;
+            return "eval-diff";
         
         // Game ended with huge material on board
         int weight_cutoff = 4000;
-        if (mm.BoardPosition.PositionWeight() > weight_cutoff) return 4;
+        if (mm.BoardPosition.PositionWeight() > weight_cutoff)
+            return "huge material";
 
         // If is one of first six games
-        if (CurrentGameNum <= 4) return 0;
+        if (CurrentGameNum <= 4)
+            return "first games";
 
-        return -1;
+        if (state == 5)
+            return "draw by 3-move repetition";
+
+        return "";
     }
 
-
     private void
-    PrintIfInterestingGame()
+    PrintIfInterestingGame(int result, int state, int prediction)
     {
-        // int value = InterestingGame(result, prediction);
-        // string value = InterestingGame(result, prediction);
-        // if (value == "")
-        //     return;
+        string value = InterestingGame(result, state, prediction);
+
+        if (value == "") return;
         
-        // //! TODO ... print game, eval, time in a file
+        //! TODO ... print time in a file
 
-        // string dir = Application.streamingAssetsPath + "/arena/";
-        // string game_no = CurrentGameNum.ToString();
+        string dir_games = Application.streamingAssetsPath + "/arena/Games/";
+        string dir_evals = Application.streamingAssetsPath + "/arena/Evals/";
+        string game_no = CurrentGameNum.ToString();
 
-        // string path_pgn = dir + "Games/game" + game_no + "_" + value + ".pgn";
+        // Create the directory if it does not exist
+        if (!Directory.Exists(dir_games))
+            Directory.CreateDirectory(dir_games);
         
+        if (!Directory.Exists(dir_evals))
+            Directory.CreateDirectory(dir_evals);
 
+        string path_pgn  = dir_games + "game" + game_no + "_" + value + ".pgn";
+        string path_eval = dir_evals + "eval" + game_no + "_" + value;
+
+        string played_moves = mm.Data.GetMoveList(mm.mg);
+        string move_evals = mm.Data.GetMovesEval();
+
+        string pgn = ScoreSheet.GeneratePgnPreData(CurrentGameNum, result) + played_moves;
+
+        File.WriteAllText(path_pgn ,        pgn);
+        File.WriteAllText(path_eval, move_evals);
     }
 
 
@@ -83,7 +100,7 @@ public class Arena : MonoBehaviour
         return 0;
     }
 
-
+    //! Test remaining time left.
     private void
     DisplayEstimatedTime()
     {
@@ -96,6 +113,7 @@ public class Arena : MonoBehaviour
         int remainingSeconds = seconds % 60;
 
         string timeString = $"{hours} hr, {minutes} min, {remainingSeconds} secs";
+        RemainingTimeText.text = timeString;
     }
 
 
@@ -111,7 +129,7 @@ public class Arena : MonoBehaviour
         DisplayEstimatedTime();
 
         // Print Game pgn if found interesting
-        //! TODO PrintIfInterestingGame(end_result, prediction);
+        PrintIfInterestingGame(end_result, end_state, prediction);
 
         // Print Results when new game pair starts
         if (s2s == 1)
@@ -120,8 +138,6 @@ public class Arena : MonoBehaviour
             //! TODO ... ScoreSheet.PrintScoreList();
         }
     }
-
-    // 
 
 
     public void
@@ -136,6 +152,7 @@ public class Arena : MonoBehaviour
         StartCoroutine( PlayArena() );
     }
 
+    //! TODO Set Adjournment
 
     public IEnumerator
     PlayArena()
@@ -150,9 +167,8 @@ public class Arena : MonoBehaviour
             // Set Current Game Number Text on Board
             CurrentGameNumText.text = "Game Number : " + CurrentGameNum.ToString();
 
-            //! TODO GetRandomOpening
-            // if (side2start == 0)
-            //     opening_moves = FindObjectOfType<OpeningBook>().GetRandomOpening();
+            if (side2start == 0)
+                opening_moves = FindObjectOfType<OpeningBook>().GetRandomOpening();
 
             GameObject.FindObjectOfType<Timer>().SetTime(FixedTimePerGame, IncrementPerGame);
 
@@ -170,7 +186,6 @@ public class Arena : MonoBehaviour
 
             // Wait before starting next game
             yield return new WaitForSeconds(3f);
-            UnityEngine.Debug.Log("Waited for 3 seconds before next game.");
         }
 
         // All games ended

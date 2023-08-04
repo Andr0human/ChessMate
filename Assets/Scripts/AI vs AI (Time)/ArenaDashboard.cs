@@ -80,9 +80,6 @@ public class ArenaDashboard : MonoBehaviour
 
         AdjournToggle.gameObject.SetActive(false);
 
-
-
-
         if (tmr.AllotedTimePerSide == 0f) {}
             // tmr.enabled = false;
         else
@@ -90,8 +87,6 @@ public class ArenaDashboard : MonoBehaviour
             ChessClocksText[0].SetActive(true);
             ChessClocksText[1].SetActive(true);
         }
-
-        //! TODO Disable AdjournToggle, start button
 
         /*
         GameObject.Find("BackBoard").SetActive(false);

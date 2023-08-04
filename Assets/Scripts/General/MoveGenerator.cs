@@ -37,7 +37,6 @@ public class MoveGenerator : MonoBehaviour
         int emy = pos.Emy();
         int side = own >> 3;
         int k_sq = pos.IndexNo(pos.King(own));
-        int t_csep = pos.csep;
 
         pos.MakeMove(move);
 
@@ -54,7 +53,7 @@ public class MoveGenerator : MonoBehaviour
           | (knight_mask & pos.Knight(emy))
           | (pawn_mask & pos.Pawn(emy)) ) == 0;
 
-        pos.UnmakeMove(move, t_csep);
+        pos.UnmakeMove();
         return res;
     }
 
@@ -129,10 +128,9 @@ public class MoveGenerator : MonoBehaviour
 
         ulong apieces = pos.All();
 
-        int t_csep = pos.csep;
         pos.MakeMove(move);
         string gives_check = InCheck(ref pos, pos.Own()) ? "+" : "";
-        pos.UnmakeMove(move, t_csep);
+        pos.UnmakeMove();
 
         string captures = "";
 
@@ -588,10 +586,9 @@ public class MoveGenerator : MonoBehaviour
 
         foreach (var move in myMoves.moves)
         {
-            int t_csep = pos.csep;
             pos.MakeMove(move);
             answer += BulkCount(ref pos, depth - 1);
-            pos.UnmakeMove(move, t_csep);
+            pos.UnmakeMove();
         }
 
         return answer;

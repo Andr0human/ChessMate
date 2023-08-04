@@ -9,11 +9,17 @@ public class ChessBoard
     public ulong[]   pieces;
     private  int[] bitIndex;
 
-    // csep -> castling + en_passant squares
+    // csep -> castling states + en_passant squares
     public int color, csep;
     public int halfmove, fullmove;
 
     public ulong hashvalue;
+
+    private List<int> prevMoves;
+    private List<int> prevCseps;
+    private List<ulong> prevHashKeys;
+
+    #region Load Position
 
     private int
     CharToPieceType(char piece)
@@ -59,17 +65,19 @@ public class ChessBoard
         halfmove = fullmove = 0;
         hashvalue = 0;
 
+        prevMoves = new List<int>();
+        prevCseps = new List<int>();
+        prevHashKeys = new List<ulong>();
+
         for (int sq = 0; sq < 64; sq++)
             bitIndex[((1UL << sq) * 4220644425418082699UL) >> 57] = sq;
     }
-
 
     public
     ChessBoard(string fen)
     {
         LoadFen(fen);
     }
-
 
     public void
     LoadFen(string fen)
@@ -110,8 +118,9 @@ public class ChessBoard
         
         halfmove = int.Parse(elems[4]);
         fullmove = int.Parse(elems[5]);
-    }
 
+        hashvalue = GenerateHashKey();
+    }
 
     public string
     Fen()
@@ -164,7 +173,6 @@ public class ChessBoard
         return generated_fen;
     }
 
-
     public ulong
     GenerateHashKey()
     {
@@ -182,11 +190,16 @@ public class ChessBoard
         {
             if (board[sq] == 0)
                 continue;
-            key ^= TT.HashUpdate(board[sq] & 7, sq);
+            key ^= TT.HashUpdate(board[sq], sq);
         }
 
         return key;
     }
+
+    #endregion
+
+
+    #region Utils
 
     public ulong
     Lsb(ulong __x)
@@ -217,7 +230,6 @@ public class ChessBoard
         return (__x != 0) ? IndexNo(Msb(__x)) : 0;
     }
 
-
     public int
     PopCount(ulong __x)
     {
@@ -229,17 +241,34 @@ public class ChessBoard
         return ones;
     }
 
-
     public int
     IndexNo(ulong __x)
     {
         return bitIndex[(__x * 4220644425418082699UL) >> 57];
     }
 
+    public int
+    PositionWeight()
+    {
+        int weight = 0;
+        weight += 100 * PopCount(pieces[1] | pieces[ 9]);
+        weight += 320 * PopCount(pieces[2] | pieces[10]);
+        weight += 300 * PopCount(pieces[3] | pieces[11]);
+        weight += 500 * PopCount(pieces[4] | pieces[12]);
+        weight += 900 * PopCount(pieces[5] | pieces[13]);
+        return weight;
+    }
+
+    #endregion
+
+
+    #region Make/Unmake-move
 
     public void
     MakeMove(int move)
     {
+        StoreCurrentStateValues(move);
+
         int ip = move & 63;
         int fp = (move >> 6) & 63;
 
@@ -367,12 +396,14 @@ public class ChessBoard
         color ^= 1;
     }
 
-
     public void
-    UnmakeMove(int move, int t_csep)
+    UnmakeMove()
     {
+        int move = RetrievePrevStateValues();
+        if (move == 0)
+            return;
+
         color ^= 1;
-        csep = t_csep;
 
         int ip = move & 63;
         int fp = (move >> 6) & 63;
@@ -424,7 +455,6 @@ public class ChessBoard
         }
     }
 
-
     private void
     MakeMoveCastling(int ip, int fp, int MakeMoveCall)
     {
@@ -463,7 +493,6 @@ public class ChessBoard
         }
     }
 
-
     private void
     MakeMoveCornerRook(int piece, int square)
     {
@@ -482,18 +511,36 @@ public class ChessBoard
         }
     }
 
-
-    public int
-    PositionWeight()
+    private void
+    StoreCurrentStateValues(int move)
     {
-        int weight = 0;
-        weight += 100 * PopCount(pieces[1] | pieces[ 9]);
-        weight += 320 * PopCount(pieces[2] | pieces[10]);
-        weight += 300 * PopCount(pieces[3] | pieces[11]);
-        weight += 500 * PopCount(pieces[4] | pieces[12]);
-        weight += 900 * PopCount(pieces[5] | pieces[13]);
-        return weight;
+        prevMoves.Add(move);
+        prevCseps.Add(csep);
+        prevHashKeys.Add(hashvalue);
     }
+
+    private int
+    RetrievePrevStateValues()
+    {
+        int n = prevMoves.Count;
+        if (n == 0)
+            return 0;
+        
+        int last_move = prevMoves[n - 1];
+        csep = prevCseps[n - 1];
+        hashvalue = prevHashKeys[n - 1];
+
+        prevMoves.RemoveAt(n - 1);
+        prevCseps.RemoveAt(n - 1);
+        prevHashKeys.RemoveAt(n - 1);
+
+        return last_move;
+    }
+
+    #endregion
+
+
+    #region Move Generation
 
     public ulong
     Pawn(int side)
@@ -534,6 +581,8 @@ public class ChessBoard
     public int
     Emy()
     { return Own() ^ 8; }
+    
+    #endregion
 
 }
 

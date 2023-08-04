@@ -10,28 +10,54 @@ public class OpeningBook : MonoBehaviour
     [SerializeField] private MoveGenerator mg;
 
     private string StartFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-    [SerializeField] private int alloted_run_time = 10;
-    [SerializeField] private int moveCount_threshold = 10;
 
     public Dictionary<ulong, List<int>> Book;
+
+    private int
+    ConvertToChessmateMove(string uci_move, ref ChessBoard pos)
+    {
+        // Opening Book does not have promotions, so need to code for it
+        int Index(char row, char col) => (int)(row - 'a') + (int)(col - '1') * 8;
+
+        int ip = Index(uci_move[0], uci_move[1]);
+        int fp = Index(uci_move[2], uci_move[3]);
+
+        int ipt = pos.board[ip] & 7;
+        int fpt = pos.board[fp] & 7;
+
+        int  pos_bits = (fp << 6) | ip;
+        int type_bits = (fpt << 15) | (ipt << 12);
+        int color_bit = pos.color << 20;
+
+        return pos_bits | type_bits | color_bit;
+    }
+
 
     public void
     GetOpeningBook()
     {
         Book = new Dictionary<ulong, List<int>>();
-        string[] array = File.ReadAllLines(Application.streamingAssetsPath + "/Utility/Opening Book.txt");
-        for (int i = 0; i < array.Length; i++)
+        string[] lines = File.ReadAllLines(Application.streamingAssetsPath + "/Utility/Opening Book.txt");
+
+        foreach (string line in lines)
         {
-            string[] array2 = array[i].Split();
-            if (array2[0] == "")
-                break;
-            ulong key = System.UInt64.Parse(array2[0]);
-            List<int> list = new List<int>();
-            for (int j = 1; j < array2.Length; j++) {
-                list.Add(int.Parse(array2[j]));
+            string[] moves = line.Split();
+            ChessBoard position = new ChessBoard(StartFen);
+
+            foreach (string move in moves)
+            {
+                ulong key = position.hashvalue;
+                if (!Book.ContainsKey(key))
+                    Book[key] = new List<int>();
+
+                int e_move = ConvertToChessmateMove(move, ref position);
+
+                if (Book[key].Contains(e_move) == false)
+                    Book[key].Add(e_move);
+                position.MakeMove(e_move);
             }
-            Book[key] = list;
         }
+        UnityEngine.Debug.Log("Opening Book Generated!");
     }
 
     public bool
@@ -56,7 +82,7 @@ public class OpeningBook : MonoBehaviour
     }
     
     public int
-    PlayBookMove(ref ChessBoard __pos)
+    PlayBookMove(ref ChessBoard __pos) 
     {
         ulong key = __pos.GenerateHashKey();
         List<int> moves = Book[key];
@@ -65,63 +91,6 @@ public class OpeningBook : MonoBehaviour
         return moves[random_index];
     }
 
-
-    // Generate Opening Book
-
-    public IEnumerator
-    AddToBook()
-    {
-        HashSet<string> hashSet = new HashSet<string>();
-
-        // Initialize Stopwatch
-        Stopwatch sw = new Stopwatch();
-        sw.Reset();
-        sw.Start();
-
-        ChessBoard primary = new ChessBoard(StartFen);
-        
-        string path = System.Environment.CurrentDirectory + "/bb_engine.txt";
-        File.WriteAllText(path, "");
-
-
-        int positions_searched = 0;
-        int mCount = 0;
-
-        while (true)
-        {
-            while (true)
-            {
-                if (PositionInOpeningBook(ref primary) == false)
-                    break;
-
-                int move = PlayBookMove(ref primary);
-                primary.MakeMove(move);
-                bh.Recreate(ref primary);
-                yield return new WaitForSeconds(0.02f);
-                mCount++;
-            }
-
-            string pos = primary.Fen();
-
-            if (!hashSet.Contains(pos))
-            {
-                positions_searched++;
-                if (mCount < moveCount_threshold)
-                {
-                    print("Adding To Table");
-                    hashSet.Add(pos);
-                    File.AppendAllText(path, pos + "\n");
-                }
-            }
-
-            primary.LoadFromFEN(StartFen);
-            yield return new WaitForSeconds(0.1f);
-            mCount = 0;
-            if ((int)sw.Elapsed.TotalSeconds > alloted_run_time) break;
-
-        }
-        print("Positions Searched : " + positions_searched.ToString());
-    }
 
     public List<int>
     GetRandomOpening()
@@ -133,12 +102,14 @@ public class OpeningBook : MonoBehaviour
         {
             if (PositionInOpeningBook(ref board) == false)
                 break;
-            
+
             int move = PlayBookMove(ref board);
+
             opening.Add(move);
             board.MakeMove(move);
         }
 
         return opening;
     }
+
 }

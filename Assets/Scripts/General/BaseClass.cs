@@ -1,7 +1,7 @@
-using System.Collections.Generic;
 using UnityEngine;
 using System;
 using System.IO;
+using System.Collections.Generic;
 
 
 public static class TT
@@ -24,10 +24,18 @@ public static class TT
     {
         HashIndex = new ulong[860];
 
-        //! TODO -> Starting Seed
-
         for (int i = 0; i < 860; i++)
             HashIndex[i] = xorshift64star();
+    }
+
+
+    public static ulong
+    HashUpdate(int piece, int pos)
+    {
+        int color = piece >> 3;
+        piece = (piece & 7) - 1;
+
+        return HashIndex[ 85 + pos + 64 * (piece + 6 * color) ];
     }
 }
 
@@ -39,6 +47,8 @@ public class MoveList
     public ulong startIndex;
     public ulong[] endIndex;
 
+    public List<int> moves;
+
     public
     MoveList(int pc = 0)
     {
@@ -46,6 +56,7 @@ public class MoveList
         pColor = pc;
         startIndex = 0;
         endIndex = new ulong[64];
+        moves = new List<int>();
     }
 
     public void
@@ -86,30 +97,33 @@ public class MoveList
             if ((endIndex[ip] & (1UL << fp)) != 0) return true;
         return false;
     }
-};
 
 
-public class KAinfo
-{
-    public int attackers = 0;
-    public ulong area, ppos;
-
-    public void Add(ulong tmp, ulong tmp2)
+    public void
+    Add(int move)
     {
-        attackers++;
-        area = tmp;
-        ppos = tmp2;
+        moves.Add(move);
+
+        int ip = move & 63;
+        int fp = (move >> 6) & 63;
+
+        startIndex   |= 1UL << ip;
+        endIndex[ip] |= 1UL << fp;
+
+        moveCount++;
     }
+
 };
 
 
 public class MatchData
 {
-    private List<int> moves;
-    private List<float> evals;
-    private List<float> time_left;
+    private List< int >             moves;
+    private List<float>             evals;
+    private List<float>         time_left;
     private List<ulong> occured_positions;
 
+    bool first_move;
 
     public MatchData()
     {
@@ -117,6 +131,7 @@ public class MatchData
         evals = new List<float>();
         time_left = new List<float>();
         occured_positions = new List<ulong>();
+        first_move = true;
     }
 
     public void
@@ -135,7 +150,14 @@ public class MatchData
 
     public int
     LastPlayedMove()
-    { return (moves.Count > 0) ? (moves[moves.Count - 1]) : (-1); }
+    {
+        if (first_move)
+        {
+            first_move = false;
+            return 0;
+        }
+        return (moves.Count > 0) ? (moves[moves.Count - 1]) : (0);
+    }
 
     public bool
     FiftyMoveRuleDraw()
@@ -199,6 +221,32 @@ public class MatchData
 
         return false;
     }
+
+    public string
+    GetMoveList(MoveGenerator mg)
+    {
+        string res = "";
+        ChessBoard board = new ChessBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+
+        foreach (var move in moves)
+        {
+            res += mg.PrintMove(move, board) + " ";
+            board.MakeMove(move);
+        }
+
+        return res;
+    }
+
+    public string
+    GetMovesEval()
+    {
+        string res = "";
+
+        foreach (var eval in evals)
+            res += eval.ToString() + " ";
+
+        return res;
+    }
 }
 
 
@@ -220,7 +268,6 @@ class ArenaScoreSheet
         prediction_attempt = prediction_success = 0;
         results = new List<int>();
     }
-
 
     public void
     Add(int result, int prediction)
@@ -278,7 +325,38 @@ class ArenaScoreSheet
             + result_str
         );
 
-        //! TODO ... Prediction Accuracy + loss_on_time.
+        //! TODO ... loss_on_time.
+    }
+
+
+    public string
+    GeneratePgnPreData(int game_no, int result)
+    {
+        string white = game_no % 2 == 1 ? engine1 : engine2;
+        string black = game_no % 2 == 0 ? engine1 : engine2;
+
+        string event_name = engine1 + " vs " + engine2 + " Unit Testing";
+
+        System.DateTime theTime = System.DateTime.Now;
+        string date_string = theTime.Year + "." + theTime.Month + "." + theTime.Day;
+
+        string result_string = "";
+
+        if (result == 1)
+            result_string = "1-0";
+        else if (result == -1)
+            result_string = "0-1";
+        else
+            result_string = "1/2-1/2";
+
+        return
+            "[Event \""  + event_name + "\"]\n"
+          + "[Site \"?\"]\n"
+          + "[Date \""   + date_string + "\"]\n"
+          + "[Round \""  + game_no.ToString()  + "\"]\n"
+          + "[White \""  + white  + "\"]\n"
+          + "[Black \""  + black  + "\"]\n"
+          + "[Result \"" + result_string + "\"]\n\n";
     }
 }
 

@@ -54,7 +54,7 @@ public class ChessEngine : IPlayer
         if (!File.Exists( EngineInputPath)) File.Create( EngineInputPath).Dispose();
         if (!File.Exists(EngineOutputPath)) File.Create(EngineOutputPath).Dispose();
 
-        File.WriteAllText(EngineInputPath, "");
+        File.WriteAllText(EngineInputPath , "");
         File.WriteAllText(EngineOutputPath, "");
 
         EngineProcess = new Process();
@@ -76,7 +76,7 @@ public class ChessEngine : IPlayer
         return (tmr.ChessClocks[__side], tmr.IncrementTime);
     }
 
-    private static float 
+    private static float
     DecideTimeForSearch(ref ChessBoard __pos)
     {
         var (time_left, increment) = GetAvailableTime(ref __pos);
@@ -88,8 +88,14 @@ public class ChessEngine : IPlayer
         float moves_to_go = max_moves -
             (((max_weight - current_weight) / 400f) * 1.3f);
 
-        return ((time_left + increment) / moves_to_go) + (0.6f * increment);
+        float search_time = ((time_left + increment) / moves_to_go) + (0.6f * increment);
+
+        if (search_time >= time_left)
+            search_time = 0.8f * search_time;
+
+        return search_time;
     }
+
 
     public IEnumerator
     Play(ChessBoard position, int last_move)
