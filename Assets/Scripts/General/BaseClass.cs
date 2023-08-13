@@ -300,7 +300,7 @@ class ArenaScoreSheet
     PrintArenaResult()
     {
         var ( e1_wins_w,  e1_wins_b) = CalculateWins(1);
-        var ( e2_wins_w,  e2_wins_b) = CalculateWins(-1);
+        var ( e2_wins_b,  e2_wins_w) = CalculateWins(-1);
         var (e1_draws_w, e1_draws_b) = CalculateWins(0);
 
         int  e1_wins_t =  e1_wins_w +  e1_wins_b;
