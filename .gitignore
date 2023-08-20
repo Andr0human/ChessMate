@@ -29,6 +29,7 @@
 
 # StreamingAssets .exe files
 [Aa]ssets/StreamingAssets/*.exe
+[Aa]ssets/StreamingAssets/*.meta
 ![Aa]ssets/StreamingAssets/bot.exe
 
 

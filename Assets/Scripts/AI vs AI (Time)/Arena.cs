@@ -26,41 +26,10 @@ public class Arena : MonoBehaviour
     private ArenaScoreSheet ScoreSheet;
     private Stopwatch sw;
 
-    private string
-    InterestingGame(int result, int state, int prediction)
-    {
-        // Prediction made and failed
-        if ((prediction != 0) && (result != prediction))
-            return "win-loss prediction-failed";
-
-        // If huge evaluation difference in more than 5 places in a game
-        if (mm.Data.DifferentEvalCount(3f) > 5)
-            return "eval-diff";
-        
-        // Game ended with huge material on board
-        int weight_cutoff = 4000;
-        if (mm.BoardPosition.PositionWeight() > weight_cutoff)
-            return "huge material";
-
-        // If is one of first six games
-        if (CurrentGameNum <= 4)
-            return "first games";
-
-        if (state == 5)
-            return "draw by 3-move repetition";
-
-        return "";
-    }
 
     private void
-    PrintIfInterestingGame(int result, int state, int prediction)
+    PrintGame(int result)
     {
-        string value = InterestingGame(result, state, prediction);
-
-        if (value == "") return;
-        
-        //! TODO ... print time in a file
-
         string dir_games = Application.streamingAssetsPath + "/arena/Games/";
         string dir_evals = Application.streamingAssetsPath + "/arena/Evals/";
         string game_no = CurrentGameNum.ToString();
@@ -68,22 +37,44 @@ public class Arena : MonoBehaviour
         // Create the directory if it does not exist
         if (!Directory.Exists(dir_games))
             Directory.CreateDirectory(dir_games);
-        
-        if (!Directory.Exists(dir_evals))
-            Directory.CreateDirectory(dir_evals);
 
-        string path_pgn  = dir_games + "game" + game_no + "_" + value + ".pgn";
-        string path_eval = dir_evals + "eval" + game_no + "_" + value;
-
+        string path_pgn  = dir_games + "game" + game_no + ".pgn";
         string played_moves = mm.Data.GetMoveList(mm.mg);
-        string move_evals = mm.Data.GetMovesEval();
 
         string pgn = ScoreSheet.GeneratePgnPreData(CurrentGameNum, result) + played_moves;
-
-        File.WriteAllText(path_pgn ,        pgn);
-        File.WriteAllText(path_eval, move_evals);
+        File.WriteAllText(path_pgn , pgn);
     }
 
+
+    private string
+    GameRemark(int result, int state, int prediction)
+    {
+        string remark = "";
+
+        // Prediction made and failed
+        if ((prediction != 0) && (result != prediction))
+            remark += "win-loss prediction-failed | ";
+
+        // If huge evaluation difference in more than 5 places in a game
+        if (mm.Data.DifferentEvalCount(3f) > 5)
+            remark += "eval-diff | ";
+        
+        // Game ended with huge material on board
+        int weight_cutoff = 4000;
+        if (mm.BoardPosition.PositionWeight() > weight_cutoff)
+            remark += "huge material | ";
+
+        if (state == 5)
+            remark += "draw by 3-move repetition | ";
+
+        if ((state == 7) || (state == 8))
+            remark += "lost on time | ";
+
+        if (remark.Length > 0)
+            remark = remark.Substring(0, remark.Length - 3);
+
+        return remark;
+    }
 
     private int
     GetResultFromState(int state, int prediction)
@@ -100,7 +91,6 @@ public class Arena : MonoBehaviour
         return 0;
     }
 
-    //! Test remaining time left.
     private void
     DisplayEstimatedTime()
     {
@@ -123,20 +113,21 @@ public class Arena : MonoBehaviour
         int end_result = GetResultFromState(end_state, prediction);
 
         // Update Wins, Loss, Draw
-        ScoreSheet.Add(end_result, prediction);
+        ScoreSheet.Add(end_result, prediction, end_state);
 
         // Display time to complete all remaining games
         DisplayEstimatedTime();
 
         // Print Game pgn if found interesting
-        PrintIfInterestingGame(end_result, end_state, prediction);
+        PrintGame(end_result);
 
         // Print Results when new game pair starts
         if (s2s == 1)
         {
             ScoreSheet.PrintArenaResult();
-            //! TODO ... ScoreSheet.PrintScoreList();
         }
+        ScoreSheet.PrintArenaResultLog(CurrentGameNum, end_result,
+            mm.Data.MoveCount(), GameRemark(end_result, end_state, prediction));
     }
 
 

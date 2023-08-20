@@ -24,6 +24,7 @@ public class MatchManager : MonoBehaviour
 
     private string StartFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
+    private int gameNo = 1;
 
     public void
     Start()
@@ -157,12 +158,13 @@ public class MatchManager : MonoBehaviour
         // Create players
         Players[0] = (playerWhite == "human")
                       ? new HumanPlayer()
-                      : new ChessEngine(playerWhite, fen, fixedTimePerMove, allowOpeningBook);
+                      : new ChessEngine(playerWhite, fen, gameNo, fixedTimePerMove, allowOpeningBook);
 
         Players[1] = (playerBlack == "human")
                       ? new HumanPlayer()
-                      : new ChessEngine(playerBlack, fen, fixedTimePerMove, allowOpeningBook);
+                      : new ChessEngine(playerBlack, fen, gameNo, fixedTimePerMove, allowOpeningBook);
 
+        gameNo++;
         // Initialize timer and start the game
         tmr.Init(Side2Move);
         yield return StartCoroutine( PlayGame() );
@@ -174,11 +176,14 @@ public class MatchManager : MonoBehaviour
         while ((EndState = IsGameOver()) == -1)
         {
             // Let player make his move
+            // UnityEngine.Debug.Log("Request Move Started!");
             yield return StartCoroutine( RequestMove() ) ;
 
             // Time runs out before player making a move
             if (TimeLeftForSearch() == false)
                 break;
+
+            // UnityEngine.Debug.Log("Request Move Ended!");
 
             // Retrieve player move
             var (move, eval) = Players[Side2Move].GetResults();
@@ -243,8 +248,10 @@ public class MatchManager : MonoBehaviour
             return moveFound || !timeLeftForSearch;
         });
 
-        if (!timeLeftForSearch)
+        if (!timeLeftForSearch) {
             EndState = 7 + (Side2Move ^ 1);
+            Players[Side2Move].StopReadOutput();
+        }
     }
 
 

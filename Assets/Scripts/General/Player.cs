@@ -13,6 +13,10 @@ public interface IPlayer
     void Stop() {}
 
     bool MoveFound();
+
+    bool ReadOutput();
+
+    void StopReadOutput();
 }
 
 
@@ -36,7 +40,7 @@ public class ChessEngine : IPlayer
 
 
     public
-    ChessEngine(string __engine, string start_fen, bool __fixed_move_time=false,
+    ChessEngine(string __engine, string start_fen, int game_no, bool __fixed_move_time=false,
         bool __allow_opening_book=true)
     {
         ob  = GameObject.FindObjectOfType<OpeningBook>();
@@ -49,9 +53,13 @@ public class ChessEngine : IPlayer
         EnginePath       = Application.streamingAssetsPath + "/" + __engine + ".exe";
         EngineInputPath  = Application.streamingAssetsPath + "/" + __engine +  ".in";
         EngineOutputPath = Application.streamingAssetsPath + "/" + __engine + ".out";
+        string EngineLogPath =
+            Application.streamingAssetsPath + "/logs/" + __engine + "_game_" + game_no.ToString() + ".log";
 
+        // UnityEngine.Debug.Log("LogName " + EngineLogPath);
         // Create input and output files for commands
         if (!File.Exists( EngineInputPath)) File.Create( EngineInputPath).Dispose();
+        if (!File.Exists(EngineOutputPath)) File.Create(EngineOutputPath).Dispose();
         if (!File.Exists(EngineOutputPath)) File.Create(EngineOutputPath).Dispose();
 
         File.WriteAllText(EngineInputPath , "");
@@ -61,8 +69,11 @@ public class ChessEngine : IPlayer
         ProcessStartInfo startInfo = new ProcessStartInfo(EnginePath)
         {
             WindowStyle = ProcessWindowStyle.Hidden,
-            Arguments = "play input " + EngineInputPath + " output "
-                + EngineOutputPath + " position \"" + start_fen + "\"",
+            Arguments = "play"
+                + " input "  + EngineInputPath
+                + " output " + EngineOutputPath
+                + " log "    + EngineLogPath
+                + " position \"" + start_fen + "\"",
             WorkingDirectory = Application.streamingAssetsPath,
         };
 
@@ -134,10 +145,13 @@ public class ChessEngine : IPlayer
         }
     }
 
-    private bool
+    public bool
     ReadOutput()
     {
         if (EngineProcess == null)
+            return true;
+
+        if (EngineMove == -1)
             return true;
 
         using (FileStream outputFileStream = new FileStream(EngineOutputPath, FileMode.Open, FileAccess.Read, FileShare.Write))
@@ -185,7 +199,13 @@ public class ChessEngine : IPlayer
 
     public bool
     MoveFound()
-    { return EngineMove != 0; }
+    { return EngineMove > 0; }
+
+    public void
+    StopReadOutput()
+    {
+        EngineMove = -1;
+    }
 
     public (int, float)
     GetResults()
@@ -254,6 +274,16 @@ public class HumanPlayer : IPlayer
 
     public bool
     MoveFound()
-    { return HumanMove != 0; }
+    { return HumanMove > 0; }
+
+    public void
+    StopReadOutput()
+    {
+        HumanMove = -1;
+    }
+
+    public bool
+    ReadOutput()
+    { return true; }
 }
 

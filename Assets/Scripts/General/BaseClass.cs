@@ -247,6 +247,13 @@ public class MatchData
 
         return res;
     }
+
+    public int
+    MoveCount()
+    {
+        return moves.Count;
+    }
+
 }
 
 
@@ -258,6 +265,9 @@ class ArenaScoreSheet
     private int prediction_attempt;
     private int prediction_success;
 
+    private int engine1_loss_on_time;
+    private int engine2_loss_on_time;
+
     List<int> results;
 
     public ArenaScoreSheet(string __engine1, string __engine2)
@@ -266,11 +276,15 @@ class ArenaScoreSheet
         engine2 = __engine2;
 
         prediction_attempt = prediction_success = 0;
+        engine1_loss_on_time = engine2_loss_on_time = 0;
         results = new List<int>();
+
+        string file_path = Application.streamingAssetsPath + "/arena/results_log.csv";
+        File.WriteAllText(file_path, "GameNo, Result, WhitePlayer, BlackPlayer, MoveCount, Remarks\n");
     }
 
     public void
-    Add(int result, int prediction)
+    Add(int result, int prediction, int state)
     {
         results.Add(result);
 
@@ -279,6 +293,21 @@ class ArenaScoreSheet
             prediction_attempt++;
             if (prediction == result)
                 prediction_success++;
+        }
+
+        if (results.Count % 2 == 1)
+        {
+            if (state == 7)
+                engine2_loss_on_time++;
+            if (state == 8)
+                engine1_loss_on_time++;
+        }
+        else
+        {
+            if (state == 7)
+                engine1_loss_on_time++;
+            if (state == 8)
+                engine2_loss_on_time++;
         }
     }
 
@@ -308,11 +337,10 @@ class ArenaScoreSheet
         int e1_draws_t = e1_draws_w + e1_draws_b;
 
         string file_path = Application.streamingAssetsPath + "/arena/results.txt";
-
-        string result_str = "Results => ";
+        string result_string = "";
 
         foreach (var res in results)
-            result_str += res.ToString() + " ";
+            result_string += res.ToString() + " ";
 
         File.WriteAllText(file_path,
             "####     Arena RESULTS     #####\n"
@@ -322,7 +350,9 @@ class ArenaScoreSheet
             + "Black => | Wins : " + e1_wins_b + " | Draws : " + e1_draws_b + " | Loss : " + e2_wins_w + " |\n"
             + "Total => | Wins : " + e1_wins_t + " | Draws : " + e1_draws_t + " | Loss : " + e2_wins_t + " |\n\n"
             + "Prediction Accuracy => " + prediction_success.ToString() + "/" +  prediction_attempt.ToString() + "\n\n"
-            + result_str
+            + "Results => " + result_string + "\n\n"
+            + engine1 + " losses on time : " + engine1_loss_on_time.ToString() + "\n"
+            + engine2 + " losses on time : " + engine2_loss_on_time.ToString() + "\n"
         );
 
         //! TODO ... loss_on_time.
@@ -357,6 +387,57 @@ class ArenaScoreSheet
           + "[White \""  + white  + "\"]\n"
           + "[Black \""  + black  + "\"]\n"
           + "[Result \"" + result_string + "\"]\n\n";
+    }
+
+    public string
+    GenerateCsvLine(int game_no, int result, int movecount, string remark)
+    {
+        string csv_line = "";
+        csv_line = game_no.ToString() + ", ";
+
+        if (result == 1)
+            csv_line += "1-0, ";
+        else if (result == -1)
+            csv_line += "0-1, ";
+        else
+            csv_line += "1/2-1/2, ";
+
+        string white = game_no % 2 == 1 ? engine1 : engine2;
+        string black = game_no % 2 == 0 ? engine1 : engine2;
+
+        csv_line += white + ", " + black + ", ";
+
+        int m = (movecount + 1) / 2;
+        csv_line += m.ToString() + ", " + remark;
+
+        return csv_line;
+    }
+
+
+    public void
+    PrintArenaResultLog(int game_no, int result, int movecount, string remark)
+    {
+        string file_path = Application.streamingAssetsPath + "/arena/results_log.csv";
+
+        string csv_line = "";
+        csv_line = game_no.ToString() + ", ";
+
+        if (result == 1)
+            csv_line += "1-0, ";
+        else if (result == -1)
+            csv_line += "0-1, ";
+        else
+            csv_line += "1/2-1/2, ";
+
+        string white = game_no % 2 == 1 ? engine1 : engine2;
+        string black = game_no % 2 == 0 ? engine1 : engine2;
+
+        csv_line += white + ", " + black + ", ";
+
+        int m = (movecount + 1) / 2;
+        csv_line += m.ToString() + ", " + remark + "\n";
+
+        File.AppendAllText(file_path, csv_line);
     }
 }
 
