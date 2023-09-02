@@ -12,9 +12,11 @@ public class OpeningBook : MonoBehaviour
     private string StartFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
     public Dictionary<ulong, List<int>> Book;
+    public List<List<int>> openingLines;
+    private int openingLineNum = 0;
 
     private int
-    ConvertToChessmateMove(string uci_move, ref ChessBoard pos)
+    UciToEncodeMove(string uci_move, ref ChessBoard pos)
     {
         // Opening Book does not have promotions, so need to code for it
         int Index(char row, char col) => (int)(row - 'a') + (int)(col - '1') * 8;
@@ -30,6 +32,38 @@ public class OpeningBook : MonoBehaviour
         int color_bit = pos.color << 20;
 
         return pos_bits | type_bits | color_bit;
+    }
+
+
+    public void
+    GetOpeningLines(string file_name)
+    {
+        string[] lines = File.ReadAllLines(Application.streamingAssetsPath + "/Utility/" + file_name);
+        openingLines = new List<List<int>>();
+
+        foreach (string line in lines)
+        {
+            string[] moves = line.Split();
+            List<int> currentLine = new List<int>();
+            ChessBoard board = new ChessBoard(StartFen);
+
+            foreach (string move in moves)
+            {
+                int e_move = UciToEncodeMove(move, ref board);
+                currentLine.Add(e_move);
+                board.MakeMove(e_move);
+            }
+            openingLines.Add(currentLine);
+        }
+    }
+
+
+    public List<int>
+    NextOpeningLine()
+    {
+        int index = openingLineNum;
+        openingLineNum = (openingLineNum + 1) % openingLines.Count;
+        return openingLines[index];
     }
 
 
@@ -50,7 +84,7 @@ public class OpeningBook : MonoBehaviour
                 if (!Book.ContainsKey(key))
                     Book[key] = new List<int>();
 
-                int e_move = ConvertToChessmateMove(move, ref position);
+                int e_move = UciToEncodeMove(move, ref position);
 
                 if (Book[key].Contains(e_move) == false)
                     Book[key].Add(e_move);
@@ -89,27 +123,6 @@ public class OpeningBook : MonoBehaviour
 
         int random_index = UnityEngine.Random.Range(0, moves.Count - 1);
         return moves[random_index];
-    }
-
-
-    public List<int>
-    GetRandomOpening()
-    {
-        List<int> opening = new List<int>();
-        ChessBoard board = new ChessBoard(StartFen);
-
-        while (true)
-        {
-            if (PositionInOpeningBook(ref board) == false)
-                break;
-
-            int move = PlayBookMove(ref board);
-
-            opening.Add(move);
-            board.MakeMove(move);
-        }
-
-        return opening;
     }
 
 }

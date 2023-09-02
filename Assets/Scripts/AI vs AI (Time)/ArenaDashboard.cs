@@ -15,7 +15,6 @@ public class ArenaDashboard : MonoBehaviour
 
     private string[] EngineNames;
     public TMP_Dropdown[] DropdownEngines;
-    public Toggle AdjournToggle;
 
     [SerializeField] private GameObject[] ChessClocksText;
 
@@ -103,13 +102,6 @@ public class ArenaDashboard : MonoBehaviour
 
 
     public void
-    SetAdjournment(bool toggle)
-    {
-        GameObject.FindObjectOfType<Arena>().Adjournment = AdjournToggle.isOn;
-    }
-
-
-    public void
     ArenaStartButton()
     {
         GameObject.Find("BackBoard").SetActive(false);
@@ -118,8 +110,6 @@ public class ArenaDashboard : MonoBehaviour
         GameObject.Find("Engine 1").SetActive(false);
         GameObject.Find("Engine 2").SetActive(false);
         GameObject.Find("Start Arena Button").SetActive(false);
-
-        AdjournToggle.gameObject.SetActive(false);
 
         if (tmr.AllotedTimePerSide == 0f) {}
             // tmr.enabled = false;

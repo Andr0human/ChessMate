@@ -75,7 +75,7 @@ public class DashBoard : MonoBehaviour
         // StartCoroutine(
         //     GameObject.FindObjectOfType<MatchManager>().StartNewGame(
         //         player_white, player_black, new List<int>(),
-        //         false, true, false
+        //         false, true
         //     )
         // );
     }

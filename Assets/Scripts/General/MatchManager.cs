@@ -11,9 +11,6 @@ public class MatchManager : MonoBehaviour
 
     [SerializeField] private GameObject EndScreen;
 
-    private  bool       CanAdjourn = false;
-    private float AdjournWinMargin =  5.0f;
-
     [HideInInspector] public ChessBoard BoardPosition;
     [HideInInspector] public  MatchData Data;
     [HideInInspector] public  IPlayer[] Players;
@@ -22,15 +19,16 @@ public class MatchManager : MonoBehaviour
     [HideInInspector] public int      EndState;
     [HideInInspector] public int EndPrediction;
 
-    private string StartFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    private float AdjournWinMargin = 5.0f;
 
-    private int gameNo = 1;
+    private string StartFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    private int    gameNo = 1;
 
     public void
     Start()
     {
         TT.Init();
-        GameObject.FindObjectOfType<OpeningBook>().GetOpeningBook();
+        GameObject.FindObjectOfType<OpeningBook>().GetOpeningLines("openings_final");
 
         BoardPosition = new ChessBoard(StartFen);
         bh.InitializeBoard(ref BoardPosition);
@@ -135,7 +133,7 @@ public class MatchManager : MonoBehaviour
 
     public IEnumerator
     StartNewGame(string playerWhite, string playerBlack, List<int> openingMoves,
-                 bool fixedTimePerMove, bool allowOpeningBook, bool canAdjourn)
+                 bool fixedTimePerMove, bool allowOpeningBook)
     {
         // Reset game data and board position
         Data = new MatchData();
@@ -145,7 +143,6 @@ public class MatchManager : MonoBehaviour
         // Reset Match Parameters
         EndState = -1;
         EndPrediction = 0;
-        CanAdjourn = canAdjourn;
 
         EndScreen.SetActive(false);
 
@@ -191,10 +188,6 @@ public class MatchManager : MonoBehaviour
             // If no prediction made so far
             if (EndPrediction == 0)
                 EndPrediction = PredictionCall();
-
-            // If we have a prediction and adjournment is allowed.
-            if (CanAdjourn && (EndPrediction != 0))
-                yield break;
 
             // Update board elements after making move
             yield return StartCoroutine( UpdateBoardElements(move, eval) );

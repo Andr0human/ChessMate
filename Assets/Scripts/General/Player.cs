@@ -53,14 +53,19 @@ public class ChessEngine : IPlayer
         EnginePath       = Application.streamingAssetsPath + "/" + __engine + ".exe";
         EngineInputPath  = Application.streamingAssetsPath + "/" + __engine +  ".in";
         EngineOutputPath = Application.streamingAssetsPath + "/" + __engine + ".out";
+
+        string EngineLogFolder = Application.streamingAssetsPath + "/arena/logs_" + EngineName;
         string EngineLogPath =
-            Application.streamingAssetsPath + "/logs/" + __engine + "_game_" + game_no.ToString() + ".log";
+            EngineLogFolder + "/game_" + game_no.ToString() + ".log";
 
         // UnityEngine.Debug.Log("LogName " + EngineLogPath);
         // Create input and output files for commands
         if (!File.Exists( EngineInputPath)) File.Create( EngineInputPath).Dispose();
         if (!File.Exists(EngineOutputPath)) File.Create(EngineOutputPath).Dispose();
         if (!File.Exists(EngineOutputPath)) File.Create(EngineOutputPath).Dispose();
+
+        if (!Directory.Exists(EngineLogFolder))
+            Directory.CreateDirectory(EngineLogFolder);
 
         File.WriteAllText(EngineInputPath , "");
         File.WriteAllText(EngineOutputPath, "");
@@ -124,17 +129,18 @@ public class ChessEngine : IPlayer
 
         float search_time = FixedMoveTime ? 0.5f : DecideTimeForSearch(ref position);
 
-        WriteInput(search_time, last_move);
+        WriteInput(search_time, tmr.ChessClocks[position.color ^ 1], last_move);
         yield return new WaitUntil( ReadOutput );
     }
 
     private void
-    WriteInput(float alloted_time, int last_move)
+    WriteInput(float alloted_time, float time_left, int last_move)
     {
+
         using (FileStream inputFileStream = new FileStream(EngineInputPath, FileMode.Create, FileAccess.Write, FileShare.Read))
         using (StreamWriter inputFileWriter = new StreamWriter(inputFileStream))
         {
-            string commandline = "time " + alloted_time.ToString("0.###") + " ";
+            string commandline = "time " + alloted_time.ToString("0.###") + " " + "total " + time_left + " ";
 
             if (last_move != 0)
                 commandline += "moves " + last_move.ToString() + " ";
@@ -148,10 +154,7 @@ public class ChessEngine : IPlayer
     public bool
     ReadOutput()
     {
-        if (EngineProcess == null)
-            return true;
-
-        if (EngineMove == -1)
+        if ((EngineProcess == null) || (EngineMove == -1))
             return true;
 
         using (FileStream outputFileStream = new FileStream(EngineOutputPath, FileMode.Open, FileAccess.Read, FileShare.Write))

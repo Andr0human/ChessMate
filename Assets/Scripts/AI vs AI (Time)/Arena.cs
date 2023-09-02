@@ -17,7 +17,6 @@ public class Arena : MonoBehaviour
     [HideInInspector] public float IncrementPerGame =  1f;
 
     public bool fixedTimePerMove = false;
-    public bool      Adjournment = false;
 
     public TextMeshProUGUI CurrentGameNumText;
     public TextMeshProUGUI  RemainingTimeText;
@@ -79,10 +78,6 @@ public class Arena : MonoBehaviour
     private int
     GetResultFromState(int state, int prediction)
     {
-        // Game Ends in Adjournment
-        if (Adjournment && (prediction != 0))
-            return prediction;
-
         // Game ended normally (one side wins)
         if (state == 1 || state == 7) return  1;
         if (state == 2 || state == 8) return -1;
@@ -134,6 +129,10 @@ public class Arena : MonoBehaviour
     public void
     InitArena()
     {
+        string dir_arena = Application.streamingAssetsPath + "/arena";
+        if (!Directory.Exists(dir_arena))
+            Directory.CreateDirectory(dir_arena);
+
         ScoreSheet = new ArenaScoreSheet(ArenaEngines[0], ArenaEngines[1]);
         sw = new Stopwatch();
 
@@ -142,8 +141,6 @@ public class Arena : MonoBehaviour
 
         StartCoroutine( PlayArena() );
     }
-
-    //! TODO Set Adjournment
 
     public IEnumerator
     PlayArena()
@@ -159,14 +156,14 @@ public class Arena : MonoBehaviour
             CurrentGameNumText.text = "Game Number : " + CurrentGameNum.ToString();
 
             if (side2start == 0)
-                opening_moves = FindObjectOfType<OpeningBook>().GetRandomOpening();
+                opening_moves = FindObjectOfType<OpeningBook>().NextOpeningLine();
 
             GameObject.FindObjectOfType<Timer>().SetTime(FixedTimePerGame, IncrementPerGame);
 
             // Play Current Match
             yield return StartCoroutine( mm.StartNewGame(
                 ArenaEngines[side2start], ArenaEngines[side2start ^ 1], opening_moves,
-                fixedTimePerMove, false, Adjournment
+                fixedTimePerMove, false
             ));
 
             UpdateArenaElements(side2start, mm.EndState, mm.EndPrediction);
