@@ -20,7 +20,7 @@
 [Aa]ssets/Plugins/Editor/JetBrains*
 
 # Arena Results
-[Aa]ssets/StreamingAssets/Arena/*
+[Aa]ssets/StreamingAssets/Arena
 
 
 # StreamingAssets Engine Input/Output Files
