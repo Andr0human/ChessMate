@@ -25,7 +25,7 @@ public class ArenaDashboard : MonoBehaviour
     private void
     Start()
     {
-        /* // Get the path to the Streaming Assets folder
+        // Get the path to the Streaming Assets folder
         string streamingAssetsPath = Application.streamingAssetsPath;
 
         // Get the list of all files in the Streaming Assets folder with .exe extension
@@ -45,7 +45,7 @@ public class ArenaDashboard : MonoBehaviour
         PopulateDropdown(DropdownEngines[1], EngineNames);
         PopulateDropdown(DropdownOpening, openingFiles);
 
-        ar.ArenaEngines = new string[2]; */
+        ar.ArenaEngines = new string[2];
     }
 
 
