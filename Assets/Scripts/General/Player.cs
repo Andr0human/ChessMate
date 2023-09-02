@@ -58,7 +58,6 @@ public class ChessEngine : IPlayer
         string EngineLogPath =
             EngineLogFolder + "/game_" + game_no.ToString() + ".log";
 
-        // UnityEngine.Debug.Log("LogName " + EngineLogPath);
         // Create input and output files for commands
         if (!File.Exists( EngineInputPath)) File.Create( EngineInputPath).Dispose();
         if (!File.Exists(EngineOutputPath)) File.Create(EngineOutputPath).Dispose();

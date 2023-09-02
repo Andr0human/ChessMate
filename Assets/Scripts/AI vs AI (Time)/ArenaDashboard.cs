@@ -14,7 +14,10 @@ public class ArenaDashboard : MonoBehaviour
     public TextMeshProUGUI TimeFormatField;
 
     private string[] EngineNames;
+    private string[] openingFiles;
+
     public TMP_Dropdown[] DropdownEngines;
+    public TMP_Dropdown   DropdownOpening;
 
     [SerializeField] private GameObject[] ChessClocksText;
 
@@ -22,7 +25,7 @@ public class ArenaDashboard : MonoBehaviour
     private void
     Start()
     {
-        // Get the path to the Streaming Assets folder
+        /* // Get the path to the Streaming Assets folder
         string streamingAssetsPath = Application.streamingAssetsPath;
 
         // Get the list of all files in the Streaming Assets folder with .exe extension
@@ -32,14 +35,22 @@ public class ArenaDashboard : MonoBehaviour
         for (int i = 0; i < EngineNames.Length; i++)
             EngineNames[i] = Path.GetFileNameWithoutExtension(exeFilePaths[i]);
 
-        PopulateDropdown(EngineNames);
+        string[] openingFilePaths = Directory.GetFiles(streamingAssetsPath + "/Utility/", "*.opening");
+        openingFiles = new string[openingFilePaths.Length];
 
-        ar.ArenaEngines = new string[2];
+        for (int i = 0; i < openingFiles.Length; i++)
+            openingFiles[i] = Path.GetFileNameWithoutExtension(openingFilePaths[i]);
+
+        PopulateDropdown(DropdownEngines[0], EngineNames);
+        PopulateDropdown(DropdownEngines[1], EngineNames);
+        PopulateDropdown(DropdownOpening, openingFiles);
+
+        ar.ArenaEngines = new string[2]; */
     }
 
 
     public void
-    PopulateDropdown(string[] names)
+    PopulateDropdown(TMP_Dropdown dropdown, string[] names)
     {
         // Create a list of TMP_Dropdown.OptionData for the dropdown options
         List<TMP_Dropdown.OptionData> dropdownOptions = new List<TMP_Dropdown.OptionData>();
@@ -50,8 +61,7 @@ public class ArenaDashboard : MonoBehaviour
         }
 
         // Set the dropdown options
-        DropdownEngines[0].options = dropdownOptions;
-        DropdownEngines[1].options = dropdownOptions;
+        dropdown.options = dropdownOptions;
     }
 
 
@@ -89,24 +99,12 @@ public class ArenaDashboard : MonoBehaviour
 
 
     public void
-    DropDownMenuEngine1()
-    {
-        ar.ArenaEngines[0] = EngineNames[DropdownEngines[0].value];
-    }
-
-    public void
-    DropDownMenuEngine2()
-    {
-        ar.ArenaEngines[1] = EngineNames[DropdownEngines[1].value];
-    }
-
-
-    public void
     ArenaStartButton()
     {
         GameObject.Find("BackBoard").SetActive(false);
         GameObject.Find("Game Amount").SetActive(false);
         GameObject.Find("Time Format").SetActive(false);
+        GameObject.Find("Openings File").SetActive(false);
         GameObject.Find("Engine 1").SetActive(false);
         GameObject.Find("Engine 2").SetActive(false);
         GameObject.Find("Start Arena Button").SetActive(false);
@@ -118,6 +116,10 @@ public class ArenaDashboard : MonoBehaviour
             ChessClocksText[0].SetActive(true);
             ChessClocksText[1].SetActive(true);
         }
+
+        ar.ArenaEngines[0]  = EngineNames[DropdownEngines[0].value];
+        ar.ArenaEngines[1]  = EngineNames[DropdownEngines[1].value];
+        ar.OpeningsFilePath = openingFiles[DropdownOpening.value];
 
         ar.InitArena();
     }

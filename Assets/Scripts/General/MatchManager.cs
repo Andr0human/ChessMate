@@ -8,6 +8,7 @@ public class MatchManager : MonoBehaviour
     [SerializeField] public  MoveGenerator mg;
     [SerializeField] private Timer tmr;
     [SerializeField] private BoardHandler bh;
+    [SerializeField] private OpeningBook ob;
 
     [SerializeField] private GameObject EndScreen;
 
@@ -21,16 +22,15 @@ public class MatchManager : MonoBehaviour
 
     private float AdjournWinMargin = 5.0f;
 
-    private string StartFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    private string startFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     private int    gameNo = 1;
 
     public void
     Start()
     {
         TT.Init();
-        GameObject.FindObjectOfType<OpeningBook>().GetOpeningLines("openings_final");
 
-        BoardPosition = new ChessBoard(StartFen);
+        BoardPosition = new ChessBoard(startFen);
         bh.InitializeBoard(ref BoardPosition);
         Players = new IPlayer[2];
     }
@@ -40,22 +40,37 @@ public class MatchManager : MonoBehaviour
 
 
     private IEnumerator
-    PlayOpening(List<int> opening)
+    PlayOpening(string opening)
     {
-        float time_left = tmr.AllotedTimePerSide;
-        // Play all moves from the opening_book
-        foreach (int move in opening)
+        if (ob.IsFen(opening))
         {
-            ulong prevHash = BoardPosition.hashvalue;
-            BoardPosition.MakeMove(move);
-            Data.Add(move, 0, time_left, prevHash);
+            BoardPosition = new ChessBoard(opening);
 
+            bh.BoardReset();
             bh.Recreate(ref BoardPosition);
-            yield return new WaitForSeconds(0.1f);
 
-            Side2Move ^= 1;
+            yield return new WaitForSeconds(0.3f);
         }
+        else
+        {
+            List<int> opening_line = ob.ExtractLine(opening);
+            float time_left = tmr.AllotedTimePerSide;
+
+            // Play all moves of opening_line
+            foreach (int move in opening_line)
+            {
+                ulong prevHash = BoardPosition.hashvalue;
+                BoardPosition.MakeMove(move);
+                Data.Add(move, 0, time_left, prevHash);
+
+                bh.Recreate(ref BoardPosition);
+                yield return new WaitForSeconds(0.1f);
+
+                Side2Move ^= 1;
+            }
+        }        
     }
+
 
     public int
     IsGameOver()
@@ -132,13 +147,13 @@ public class MatchManager : MonoBehaviour
 
 
     public IEnumerator
-    StartNewGame(string playerWhite, string playerBlack, List<int> openingMoves,
+    StartNewGame(string playerWhite, string playerBlack, string opening,
                  bool fixedTimePerMove, bool allowOpeningBook)
     {
         // Reset game data and board position
         Data = new MatchData();
         Side2Move = 0;
-        BoardPosition = new ChessBoard(StartFen);
+        BoardPosition = new ChessBoard(startFen);
 
         // Reset Match Parameters
         EndState = -1;
@@ -147,8 +162,8 @@ public class MatchManager : MonoBehaviour
         EndScreen.SetActive(false);
 
         // Play the opening moves, if any
-        if (openingMoves.Count > 0)
-            yield return StartCoroutine(PlayOpening(openingMoves));
+        if (opening.Length > 0)
+            yield return StartCoroutine(PlayOpening(opening));
 
         string fen = BoardPosition.Fen();
 

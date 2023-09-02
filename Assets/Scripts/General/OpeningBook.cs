@@ -9,10 +9,10 @@ public class OpeningBook : MonoBehaviour
     [SerializeField] private  BoardHandler bh;
     [SerializeField] private MoveGenerator mg;
 
-    private string StartFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    private string startFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
     public Dictionary<ulong, List<int>> Book;
-    public List<List<int>> openingLines;
+    public string[] openings;
     private int openingLineNum = 0;
 
     private int
@@ -35,35 +35,46 @@ public class OpeningBook : MonoBehaviour
     }
 
 
-    public void
-    GetOpeningLines(string file_name)
+    public bool
+    IsFen(string opening)
     {
-        string[] lines = File.ReadAllLines(Application.streamingAssetsPath + "/Utility/" + file_name);
-        openingLines = new List<List<int>>();
-
-        foreach (string line in lines)
-        {
-            string[] moves = line.Split();
-            List<int> currentLine = new List<int>();
-            ChessBoard board = new ChessBoard(StartFen);
-
-            foreach (string move in moves)
-            {
-                int e_move = UciToEncodeMove(move, ref board);
-                currentLine.Add(e_move);
-                board.MakeMove(e_move);
-            }
-            openingLines.Add(currentLine);
-        }
+        foreach (char ch in opening)
+            if (ch == '/') return true;
+        return false;
     }
 
 
     public List<int>
-    NextOpeningLine()
+    ExtractLine(string opening)
+    {
+        string[] moves = opening.Split();
+        List<int> encoded_line = new List<int>();
+        ChessBoard board = new ChessBoard(startFen);
+
+        foreach (string move in moves)
+        {
+            int e_move = UciToEncodeMove(move, ref board);
+            encoded_line.Add(e_move);
+            board.MakeMove(e_move);
+        }
+        return encoded_line;
+    }
+
+
+    public void
+    GetOpeningLines(string file_path)
+    {
+        string path = Application.streamingAssetsPath + "/Utility/" + file_path + ".opening";
+        openings = File.ReadAllLines(path);
+    }
+
+
+    public string
+    NextOpening()
     {
         int index = openingLineNum;
-        openingLineNum = (openingLineNum + 1) % openingLines.Count;
-        return openingLines[index];
+        openingLineNum = (openingLineNum + 1) % openings.Length;
+        return openings[index];
     }
 
 
@@ -76,7 +87,7 @@ public class OpeningBook : MonoBehaviour
         foreach (string line in lines)
         {
             string[] moves = line.Split();
-            ChessBoard position = new ChessBoard(StartFen);
+            ChessBoard position = new ChessBoard(startFen);
 
             foreach (string move in moves)
             {
@@ -126,3 +137,4 @@ public class OpeningBook : MonoBehaviour
     }
 
 }
+

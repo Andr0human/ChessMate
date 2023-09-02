@@ -22,6 +22,8 @@ public class Arena : MonoBehaviour
     public TextMeshProUGUI  RemainingTimeText;
 
     public string[] ArenaEngines;
+    public string OpeningsFilePath;
+
     private ArenaScoreSheet ScoreSheet;
     private Stopwatch sw;
 
@@ -129,6 +131,8 @@ public class Arena : MonoBehaviour
     public void
     InitArena()
     {
+        GameObject.FindObjectOfType<OpeningBook>().GetOpeningLines(OpeningsFilePath);
+
         string dir_arena = Application.streamingAssetsPath + "/arena";
         if (!Directory.Exists(dir_arena))
             Directory.CreateDirectory(dir_arena);
@@ -145,7 +149,7 @@ public class Arena : MonoBehaviour
     public IEnumerator
     PlayArena()
     {
-        List<int> opening_moves = new List<int>();
+        string opening_moves = "";
         int side2start = 0;
         sw.Reset();
         sw.Start();
@@ -156,7 +160,7 @@ public class Arena : MonoBehaviour
             CurrentGameNumText.text = "Game Number : " + CurrentGameNum.ToString();
 
             if (side2start == 0)
-                opening_moves = FindObjectOfType<OpeningBook>().NextOpeningLine();
+                opening_moves = FindObjectOfType<OpeningBook>().NextOpening();
 
             GameObject.FindObjectOfType<Timer>().SetTime(FixedTimePerGame, IncrementPerGame);
 
@@ -173,7 +177,7 @@ public class Arena : MonoBehaviour
             side2start ^= 1;
 
             // Wait before starting next game
-            yield return new WaitForSeconds(3f);
+            yield return new WaitForSeconds(1.5f);
         }
 
         // All games ended
