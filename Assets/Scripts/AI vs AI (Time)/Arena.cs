@@ -41,8 +41,9 @@ public class Arena : MonoBehaviour
 
         string path_pgn  = dir_games + "game" + game_no + ".pgn";
         string played_moves = mm.Data.GetMoveList(mm.mg);
+        string pgn_header = ScoreSheet.GeneratePgnHeader(CurrentGameNum, result, mm.Data.StartFen());
 
-        string pgn = ScoreSheet.GeneratePgnPreData(CurrentGameNum, result) + played_moves;
+        string pgn = pgn_header + played_moves;
         File.WriteAllText(path_pgn , pgn);
     }
 
@@ -77,6 +78,7 @@ public class Arena : MonoBehaviour
         return remark;
     }
 
+
     private int
     GetResultFromState(int state, int prediction)
     {
@@ -87,6 +89,7 @@ public class Arena : MonoBehaviour
         // Game ends in a draws
         return 0;
     }
+
 
     private void
     DisplayEstimatedTime()
@@ -133,7 +136,7 @@ public class Arena : MonoBehaviour
     {
         GameObject.FindObjectOfType<OpeningBook>().GetOpeningLines(OpeningsFilePath);
 
-        string dir_arena = Application.streamingAssetsPath + "/arena";
+        string dir_arena = Application.streamingAssetsPath + "/arena/";
         if (!Directory.Exists(dir_arena))
             Directory.CreateDirectory(dir_arena);
 
@@ -145,6 +148,7 @@ public class Arena : MonoBehaviour
 
         StartCoroutine( PlayArena() );
     }
+
 
     public IEnumerator
     PlayArena()

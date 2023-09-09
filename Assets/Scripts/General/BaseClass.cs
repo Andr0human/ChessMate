@@ -122,16 +122,18 @@ public class MatchData
     private List<float>             evals;
     private List<float>         time_left;
     private List<ulong> occured_positions;
+    private string start_pos_fen;
 
     bool first_move;
 
-    public MatchData()
+    public MatchData(string fen)
     {
         moves = new List<int>();
         evals = new List<float>();
         time_left = new List<float>();
         occured_positions = new List<ulong>();
         first_move = true;
+        start_pos_fen = fen;
     }
 
     public void
@@ -226,7 +228,7 @@ public class MatchData
     GetMoveList(MoveGenerator mg)
     {
         string res = "";
-        ChessBoard board = new ChessBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        ChessBoard board = new ChessBoard(start_pos_fen);
 
         foreach (var move in moves)
         {
@@ -254,6 +256,8 @@ public class MatchData
         return moves.Count;
     }
 
+    public string StartFen()
+    { return start_pos_fen; }
 }
 
 
@@ -270,6 +274,7 @@ class ArenaScoreSheet
 
     List<int> results;
 
+
     public ArenaScoreSheet(string __engine1, string __engine2)
     {
         engine1 = __engine1;
@@ -282,6 +287,7 @@ class ArenaScoreSheet
         string file_path = Application.streamingAssetsPath + "/arena/results_log.csv";
         File.WriteAllText(file_path, "GameNo, Result, WhitePlayer, BlackPlayer, MoveCount, Remarks\n");
     }
+
 
     public void
     Add(int result, int prediction, int state)
@@ -311,6 +317,7 @@ class ArenaScoreSheet
         }
     }
 
+
     private (int, int)
     CalculateWins(int win_value)
     {
@@ -324,6 +331,7 @@ class ArenaScoreSheet
         
         return (count1, count2);
     }
+
 
     public void
     PrintArenaResult()
@@ -360,7 +368,7 @@ class ArenaScoreSheet
 
 
     public string
-    GeneratePgnPreData(int game_no, int result)
+    GeneratePgnHeader(int game_no, int result, string fen)
     {
         string white = game_no % 2 == 1 ? engine1 : engine2;
         string black = game_no % 2 == 0 ? engine1 : engine2;
@@ -386,8 +394,10 @@ class ArenaScoreSheet
           + "[Round \""  + game_no.ToString()  + "\"]\n"
           + "[White \""  + white  + "\"]\n"
           + "[Black \""  + black  + "\"]\n"
-          + "[Result \"" + result_string + "\"]\n\n";
+          + "[Result \"" + result_string + "\"]\n"
+          + "[FEN \""    + fen + "\"]\n\n";
     }
+
 
     public string
     GenerateCsvLine(int game_no, int result, int movecount, string remark)

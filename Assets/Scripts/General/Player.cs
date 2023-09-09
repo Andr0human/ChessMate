@@ -38,6 +38,8 @@ public class ChessEngine : IPlayer
     private   int EngineMove;
     private float EngineEval;
 
+    private int QueryCount;
+
 
     public
     ChessEngine(string __engine, string start_fen, int game_no, bool __fixed_move_time=false,
@@ -53,6 +55,8 @@ public class ChessEngine : IPlayer
         EnginePath       = Application.streamingAssetsPath + "/" + __engine + ".exe";
         EngineInputPath  = Application.streamingAssetsPath + "/" + __engine +  ".in";
         EngineOutputPath = Application.streamingAssetsPath + "/" + __engine + ".out";
+
+        QueryCount = 1;
 
         string EngineLogFolder = Application.streamingAssetsPath + "/arena/logs_" + EngineName;
         string EngineLogPath =
@@ -74,9 +78,9 @@ public class ChessEngine : IPlayer
         {
             WindowStyle = ProcessWindowStyle.Hidden,
             Arguments = "play"
+                + " log "    + EngineLogPath
                 + " input "  + EngineInputPath
                 + " output " + EngineOutputPath
-                + " log "    + EngineLogPath
                 + " position \"" + start_fen + "\"",
             WorkingDirectory = Application.streamingAssetsPath,
         };
@@ -84,12 +88,14 @@ public class ChessEngine : IPlayer
         EngineProcess = Process.Start(startInfo);
     }
 
+
     private static (float, float)
     GetAvailableTime(ref ChessBoard __pos)
     {
         int __side = __pos.color ^ 1;
         return (tmr.ChessClocks[__side], tmr.IncrementTime);
     }
+
 
     private static float
     DecideTimeForSearch(ref ChessBoard __pos)
@@ -104,10 +110,8 @@ public class ChessEngine : IPlayer
             (((max_weight - current_weight) / 400f) * 1.3f);
 
         float search_time = ((time_left + increment) / moves_to_go) + (0.6f * increment);
-
-        if (search_time >= time_left)
-            search_time = 0.8f * search_time;
-
+        
+        search_time = Mathf.Min(search_time, 0.62f * time_left);
         return search_time;
     }
 
@@ -130,29 +134,35 @@ public class ChessEngine : IPlayer
 
         WriteInput(search_time, tmr.ChessClocks[position.color ^ 1], last_move);
         yield return new WaitUntil( ReadOutput );
+        QueryCount++;
     }
+
 
     private void
     WriteInput(float alloted_time, float time_left, int last_move)
     {
-
         using (FileStream inputFileStream = new FileStream(EngineInputPath, FileMode.Create, FileAccess.Write, FileShare.Read))
         using (StreamWriter inputFileWriter = new StreamWriter(inputFileStream))
         {
-            string commandline = "time " + alloted_time.ToString("0.###") + " " + "total " + time_left + " ";
+            int INPUT_SIZE = 50;
+            string commandline =
+                QueryCount.ToString() + " time " + alloted_time.ToString("0.###");
 
             if (last_move != 0)
-                commandline += "moves " + last_move.ToString() + " ";
+                commandline += " moves " + last_move.ToString();
 
-            commandline += "go";
+            commandline += " go";
+            commandline += new string(' ', INPUT_SIZE - commandline.Length);
 
             inputFileWriter.WriteLine(commandline);
         }
     }
 
+
     public bool
     ReadOutput()
     {
+        int OUTPUT_SIZE = 30;
         if ((EngineProcess == null) || (EngineMove == -1))
             return true;
 
@@ -161,16 +171,22 @@ public class ChessEngine : IPlayer
         {
             string line = outputFileReader.ReadLine();
             if (line == null) return false;
+            UnityEngine.Debug.Log(line);
+            if (line.Length != OUTPUT_SIZE) return false;
 
             string[] values = line.Split();
+
+            int returnQuery = int.Parse(values[2]);
+            if (returnQuery != QueryCount)
+                return false;
 
             EngineMove = int.Parse(values[0]);
             EngineEval = float.Parse(values[1]);
 
-            File.WriteAllText(EngineOutputPath, "");
             return true;
         }
     }
+
 
     public void
     Stop()
@@ -196,18 +212,18 @@ public class ChessEngine : IPlayer
 
         if (File.Exists(EngineOutputPath)) File.Delete(EngineOutputPath);
         if (File.Exists(output_meta_file)) File.Delete(output_meta_file);
-
     }
+
 
     public bool
     MoveFound()
     { return EngineMove > 0; }
 
+
     public void
     StopReadOutput()
-    {
-        EngineMove = -1;
-    }
+    { EngineMove = -1; }
+
 
     public (int, float)
     GetResults()
@@ -224,6 +240,7 @@ public class HumanPlayer : IPlayer
     private float HumanEval;
 
     ChessBoard BoardPosition;
+
 
     public
     HumanPlayer()
@@ -254,9 +271,11 @@ public class HumanPlayer : IPlayer
         return move;
     }
 
+
     public (int, float)
     GetResults()
     { return (HumanMove, HumanEval); }
+
 
     public IEnumerator
     Play(ChessBoard position, int last_move)
@@ -274,15 +293,16 @@ public class HumanPlayer : IPlayer
         HumanEval = 0;
     }
 
+
     public bool
     MoveFound()
     { return HumanMove > 0; }
 
+
     public void
     StopReadOutput()
-    {
-        HumanMove = -1;
-    }
+    { HumanMove = -1; }
+
 
     public bool
     ReadOutput()

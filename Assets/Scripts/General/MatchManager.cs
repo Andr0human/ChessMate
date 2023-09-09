@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections;
+using System.Diagnostics;
 using System.Collections.Generic;
 
 
@@ -25,7 +26,8 @@ public class MatchManager : MonoBehaviour
     private string startFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     private int    gameNo = 1;
 
-    public void
+
+    private void
     Start()
     {
         TT.Init();
@@ -44,15 +46,19 @@ public class MatchManager : MonoBehaviour
     {
         if (ob.IsFen(opening))
         {
+            Data = new MatchData(opening);
             BoardPosition = new ChessBoard(opening);
 
             bh.BoardReset();
             bh.Recreate(ref BoardPosition);
 
+            Side2Move = BoardPosition.color ^ 1;
+
             yield return new WaitForSeconds(0.3f);
         }
         else
         {
+            Data = new MatchData(startFen);
             List<int> opening_line = ob.ExtractLine(opening);
             float time_left = tmr.AllotedTimePerSide;
 
@@ -97,11 +103,13 @@ public class MatchManager : MonoBehaviour
         return -1;
     }
 
+
     public bool
     TimeLeftForSearch()
     {
         return tmr.ChessClocks[Side2Move] > 0f;
     }
+
 
     public bool
     InsufficientMaterial(ref ChessBoard pos)
@@ -134,6 +142,7 @@ public class MatchManager : MonoBehaviour
         return false;
     }
 
+
     private void
     OnApplicationQuit()
     {
@@ -151,7 +160,6 @@ public class MatchManager : MonoBehaviour
                  bool fixedTimePerMove, bool allowOpeningBook)
     {
         // Reset game data and board position
-        Data = new MatchData();
         Side2Move = 0;
         BoardPosition = new ChessBoard(startFen);
 
@@ -176,11 +184,14 @@ public class MatchManager : MonoBehaviour
                       ? new HumanPlayer()
                       : new ChessEngine(playerBlack, fen, gameNo, fixedTimePerMove, allowOpeningBook);
 
+        yield return new WaitForSeconds(1);
         gameNo++;
+
         // Initialize timer and start the game
         tmr.Init(Side2Move);
         yield return StartCoroutine( PlayGame() );
     }
+
 
     private IEnumerator
     PlayGame()
@@ -188,14 +199,11 @@ public class MatchManager : MonoBehaviour
         while ((EndState = IsGameOver()) == -1)
         {
             // Let player make his move
-            // UnityEngine.Debug.Log("Request Move Started!");
             yield return StartCoroutine( RequestMove() ) ;
 
             // Time runs out before player making a move
             if (TimeLeftForSearch() == false)
                 break;
-
-            // UnityEngine.Debug.Log("Request Move Ended!");
 
             // Retrieve player move
             var (move, eval) = Players[Side2Move].GetResults();
@@ -218,6 +226,7 @@ public class MatchManager : MonoBehaviour
         if (Players[1] != null) Players[1].Stop();
     }
 
+
     public IEnumerator
     UpdateBoardElements(int move, float eval)
     {
@@ -238,6 +247,7 @@ public class MatchManager : MonoBehaviour
 
         tmr.ClockUnfreeze();
     }
+
 
     public IEnumerator
     RequestMove()
