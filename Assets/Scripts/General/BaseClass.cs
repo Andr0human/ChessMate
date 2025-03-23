@@ -163,7 +163,7 @@ public class MatchData
 
     public bool
     FiftyMoveRuleDraw()
-    { return occured_positions.Count >= 100; }
+    { return occured_positions.Count > 100; }
 
     public bool
     ThreeMoveRepetitionDraw()
@@ -362,8 +362,6 @@ class ArenaScoreSheet
             + engine1 + " losses on time : " + engine1_loss_on_time.ToString() + "\n"
             + engine2 + " losses on time : " + engine2_loss_on_time.ToString() + "\n"
         );
-
-        //! TODO ... loss_on_time.
     }
 
 

@@ -143,6 +143,7 @@ public class ArenaDashboard : MonoBehaviour
     {
         UnityEngine.Debug.Log("Exit Button called!");
         //! TODO Exit Button (Calls to stop players)
+        Application.Quit();
     }
 
 }

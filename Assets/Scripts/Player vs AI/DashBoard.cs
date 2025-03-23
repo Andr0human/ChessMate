@@ -84,7 +84,7 @@ public class DashBoard : MonoBehaviour
     public void
     ExitButton()
     {
-        //! TODO Exit Button (Calls to stop players)
+        Application.Quit();
     }
 
 
